@@ -1,0 +1,6 @@
+{
+  "name": "Teaser HBO Max",
+  "description": "Landing page teaser ultra premium, minimaliste et mystérieuse pour HBO Max en France",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
