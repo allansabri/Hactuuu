@@ -25,8 +25,6 @@ const posters = [
   "https://image.tmdb.org/t/p/original/4lJUQeOSCBSUyop7kPDlaU96OaP.jpg"
 ];
 
-// Double the set to ensure completely seamless repeating animation loop with no visual blank spaces
-const marqueePosters = [...posters, ...posters];
 
 export default function App() {
   const [step] = useState(8);
@@ -235,7 +233,7 @@ export default function App() {
                 {/* Cinema Infinite Scrolling Poster Ribbon */}
                 <motion.div 
                   variants={itemVariants}
-                  className="relative w-full max-w-5xl md:max-w-none md:w-screen overflow-hidden py-3 md:py-4 pointer-events-auto z-20 hbo-marquee-wrapper"
+                  className="relative -mx-4 w-[calc(100%+2rem)] max-w-none md:mx-0 md:max-w-none md:w-screen overflow-hidden py-3 md:py-4 pointer-events-auto z-20 hbo-marquee-wrapper"
                 >
                   {/* Inject Hardware-Accelerated CSS Custom Keyframes for seamless 60fps+ Compositor Scrolling */}
                   <style dangerouslySetInnerHTML={{ __html: `
@@ -248,32 +246,46 @@ export default function App() {
                       }
                     }
                     .hbo-marquee-track {
+                      display: flex;
+                      width: max-content;
                       animation: hboMarquee 38s linear infinite;
                       will-change: transform;
+                      backface-visibility: hidden;
+                      -webkit-backface-visibility: hidden;
                     }
-                    .hbo-marquee-wrapper:hover .hbo-marquee-track {
-                      animation-play-state: paused;
+                    @media (hover: hover) and (pointer: fine) {
+                      .hbo-marquee-wrapper:hover .hbo-marquee-track {
+                        animation-play-state: paused;
+                      }
                     }
                   `}} />
- 
+
                   {/* Left & Right Cinematic Atmospheric Fade Overlays */}
-                  <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-28 md:w-48 bg-gradient-to-r from-[#050505] via-[#050505]/70 to-[#050505]/0 z-10 pointer-events-none" />
-                  <div className="absolute right-0 top-0 bottom-0 w-12 sm:w-28 md:w-48 bg-gradient-to-l from-[#050505] via-[#050505]/70 to-[#050505]/0 z-10 pointer-events-none" />
+                  <div className="absolute left-0 top-3 bottom-3 md:top-0 md:bottom-0 w-14 sm:w-28 md:w-48 bg-gradient-to-r from-[#050505] via-[#050505]/80 to-[#050505]/0 z-10 pointer-events-none" />
+                  <div className="absolute right-0 top-3 bottom-3 md:top-0 md:bottom-0 w-14 sm:w-28 md:w-48 bg-gradient-to-l from-[#050505] via-[#050505]/80 to-[#050505]/0 z-10 pointer-events-none" />
                   
-                  {/* Ribbon Track */}
-                  <div className="flex gap-3 sm:gap-4 md:gap-6 w-max px-4 hbo-marquee-track">
-                    {marqueePosters.map((poster, index) => (
+                  {/* Ribbon Track with two identical groups for 100% mathematically seamless infinite loop */}
+                  <div className="hbo-marquee-track">
+                    {[0, 1].map((groupIndex) => (
                       <div 
-                        key={index}
-                        className="w-[95px] sm:w-[130px] md:w-[172px] h-[142px] sm:h-[195px] md:h-[258px] flex-shrink-0 rounded-none overflow-hidden border border-white/5 bg-zinc-900/40 shadow-2xl relative select-none transition-transform duration-300 hover:scale-105"
+                        key={groupIndex} 
+                        className="flex gap-3 sm:gap-4 md:gap-6 pr-3 sm:pr-4 md:pr-6 shrink-0"
+                        aria-hidden={groupIndex === 1}
                       >
-                        <img 
-                          src={poster} 
-                          alt={`Poster ${index}`}
-                          referrerPolicy="no-referrer"
-                          draggable="false"
-                          className="w-full h-full object-cover select-none pointer-events-none"
-                        />
+                        {posters.map((poster, index) => (
+                          <div 
+                            key={index}
+                            className="w-[95px] sm:w-[130px] md:w-[172px] h-[142px] sm:h-[195px] md:h-[258px] flex-shrink-0 rounded-none overflow-hidden border border-white/5 bg-zinc-900/40 shadow-2xl relative select-none transition-transform duration-300 md:hover:scale-105"
+                          >
+                            <img 
+                              src={poster} 
+                              alt={`Poster ${index}`}
+                              referrerPolicy="no-referrer"
+                              draggable="false"
+                              className="w-full h-full object-cover select-none pointer-events-none"
+                            />
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>

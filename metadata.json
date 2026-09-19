@@ -1,6 +1,6 @@
 {
-  "name": "Teaser HBO Max",
-  "description": "Landing page teaser ultra premium, minimaliste et mystérieuse pour HBO Max en France",
+  "name": "HBO Max Actu France",
+  "description": "HBO Max Actu France | Votre média de référence HBO Max France",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
