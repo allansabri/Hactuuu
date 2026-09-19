@@ -14,11 +14,11 @@ interface ChatAssistantProps {
 
 const FAQ_DATA = [
   {
-    question: "QuoiSurHBOMax, c’est quoi exactement ?",
-    answer: "QuoiSurHBOMax est un futur média indépendant entièrement dédié à HBO Max. L’objectif est simple : réunir au même endroit les actualités, les sorties, les séries, les films et tout ce qu’il faut savoir sur l’univers HBO Max."
+    question: "HBOMaxActu, c’est quoi exactement ?",
+    answer: "HBOMaxActu est un futur média indépendant entièrement dédié à HBO Max. L’objectif est simple : réunir au même endroit les actualités, les sorties, les séries, les films et tout ce qu’il faut savoir sur l’univers HBO Max."
   },
   {
-    question: "Que vais-je trouver sur QuoiSurHBOMax ?",
+    question: "Que vais-je trouver sur HBOMaxActu ?",
     answer: "Des actualités, des guides, des fiches séries et films, les prochaines sorties, des classements et bien d’autres fonctionnalités en préparation."
   },
   {
@@ -45,7 +45,7 @@ export default function ChatAssistant({ isVisible }: ChatAssistantProps) {
     {
       id: "init",
       sender: "bot",
-      text: "Bonjour ! Je suis l'assistant de QuoiSurHBOMax. Cliquez sur l'une des questions ci-dessous pour en savoir plus sur notre projet."
+      text: "Bonjour ! Je suis l'assistant de HBOMaxActu. Cliquez sur l'une des questions ci-dessous pour en savoir plus sur notre projet."
     }
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -164,13 +164,13 @@ export default function ChatAssistant({ isVisible }: ChatAssistantProps) {
               </button>
 
               {/* Logo */}
-              <div className="flex items-center gap-1 font-sans">
-                <span className="font-black text-xs sm:text-sm tracking-[-0.03em] text-white">
-                  QUOISUR
-                </span>
-                <span className="font-bold text-[10px] sm:text-xs text-[#8EA1AC] uppercase tracking-wider">
-                  HBOMAX
-                </span>
+              <div className="flex items-center justify-center">
+                <img
+                  src="https://i.ibb.co/5WnymfKN/HBO-Max-Actu.png"
+                  alt="HBO Max Actu Logo"
+                  referrerPolicy="no-referrer"
+                  className="h-6 sm:h-7 w-auto object-contain select-none max-w-[140px] drop-shadow-sm"
+                />
               </div>
 
               {/* Close Button */}
