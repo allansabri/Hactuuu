@@ -19,31 +19,23 @@ export default function BackgroundEffects({ step = 1 }: BackgroundEffectsProps) 
 
   return (
     <div className="absolute inset-0 w-full h-full bg-[#050505] overflow-hidden pointer-events-none select-none z-0">
-      {/* Cinematic Quilt Background Image that fades in elegantly when cards arrive */}
-      <motion.div
-        className="absolute inset-0 w-full h-full pointer-events-none bg-cover bg-center select-none"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: step >= 7 ? 0.28 : 0 }}
-        transition={{ duration: 2.5, ease: "easeInOut" }}
+      {/* Mobile Site Background Image (< md) */}
+      <div
+        className="absolute inset-0 w-full h-full pointer-events-none bg-cover bg-center bg-no-repeat select-none block md:hidden"
         style={{
-          backgroundImage: `url("https://beam-images.warnermediacdn.com/2025-11/MAX_Quilt_Pan-EMEA-12-November-2025.jpg?host=wbd-dotcom-drupal-prd-us-east-1.s3.amazonaws.com")`,
-          WebkitMaskImage: "radial-gradient(circle at center, rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 20%, rgba(0,0,0,0.2) 65%, rgba(0,0,0,0) 100%)",
-          maskImage: "radial-gradient(circle at center, rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 20%, rgba(0,0,0,0.2) 65%, rgba(0,0,0,0) 100%)"
+          backgroundImage: `url("https://i.postimg.cc/RZZYJjS0/IMG-9323.png")`,
         }}
       />
 
-      {/* Radial vignette fade: keeps center illuminated and blends outer image edges to perfect solid black */}
-      <motion.div
-        className="absolute inset-0 w-full h-full pointer-events-none select-none"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: step >= 7 ? 0.4 : 0 }}
-        transition={{ duration: 2.5, ease: "easeInOut" }}
+      {/* Web / Desktop Site Background Image (>= md) */}
+      <div
+        className="absolute inset-0 w-full h-full pointer-events-none bg-cover bg-center bg-no-repeat select-none hidden md:block"
         style={{
-          backgroundImage: "radial-gradient(circle at center, transparent 30%, rgba(5, 5, 5, 0.5) 75%, #050505 100%)"
+          backgroundImage: `url("https://i.postimg.cc/MpCcNJrr/font-coming-page.png")`,
         }}
       />
 
-      {/* Absolute Obsidian Base Noise/Texture Overlay */}
+      {/* Absolute Subtle Noise Overlay */}
       <div 
         id="noise-overlay"
         className="absolute inset-0 opacity-[0.02] mix-blend-overlay pointer-events-none"
