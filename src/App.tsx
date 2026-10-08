@@ -5,61 +5,44 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Music, VolumeX } from "lucide-react";
 import BackgroundEffects from "./components/BackgroundEffects";
 import VerticalLines from "./components/VerticalLines";
 import ChatAssistant from "./components/ChatAssistant";
-import { hpMusicPlayer } from "./utils/harryPotterMusic";
+import AuthorNotificationModal from "./components/AuthorNotificationModal";
 
 const posters = [
-  "https://image.tmdb.org/t/p/original/7V0Ebks0GgpKvQ7QbLAIdX5dos4.jpg",
-  "https://image.tmdb.org/t/p/original/uAVR8jRsd0VUBC9lHRdEb38oNSa.jpg",
-  "https://image.tmdb.org/t/p/original/zNH0vo3rvRTklF0gui5Ntr4DBAA.jpg",
-  "https://image.tmdb.org/t/p/original/5B8Cxz8ZZXp3w2WmmdKTXpkS24e.jpg",
-  "https://image.tmdb.org/t/p/original/uovtE3EcqVjRmnrDcYzAsyOZLJy.jpg",
-  "https://image.tmdb.org/t/p/original/40EtCwKe6gslcPOT7j72HSrFKm4.jpg",
-  "https://image.tmdb.org/t/p/original/AmXGX7y4GaDqBoOouPpMDWjKgLP.jpg",
-  "https://image.tmdb.org/t/p/original/aM99ibcWa3jzVmAHluucG4KhRci.jpg",
-  "https://image.tmdb.org/t/p/original/asTM7jP3RJ2KI9QkeNxUFFPhY2o.jpg",
-  "https://image.tmdb.org/t/p/original/dmo6TYuuJgaYinXBPjrgG9mB5od.jpg",
-  "https://image.tmdb.org/t/p/original/4lJUQeOSCBSUyop7kPDlaU96OaP.jpg"
+  "https://image.tmdb.org/t/p/original/kvFSpESyBZMjaeOJDx7RS3P1jey.jpg", // The Pitt (Max Original)
+  "https://image.tmdb.org/t/p/original/bB3G6Ug1jfsOUptb0RJsqrgMVta.jpg", // Creature Commandos (DC / Max Original)
+  "https://image.tmdb.org/t/p/original/yb4F1Oocq8GfQt6iIuAgYEBokhG.jpg", // Peacemaker (DC / Max Original)
+  "https://image.tmdb.org/t/p/original/ca5XiEFgyGsI38QT3wEKa1QVGX.jpg", // Hacks (Max Original)
+  "https://image.tmdb.org/t/p/original/SJCnXVBJZh7X7ePLt6XMp6TZAj.jpg", // Harry Potter (HBO / Max Original)
+  "https://image.tmdb.org/t/p/original/vknbnvegsTrzjqa8fsPyXN4wCHI.jpg", // The Seduction / Merteuil (Max Original France)
+  "https://image.tmdb.org/t/p/original/fi1b6U1kp73xheECzqwzMn8u3mX.jpg", // Adventure Time: Fionna and Cake (Max Original)
+  "https://image.tmdb.org/t/p/original/2b6E0pN19IGsmxSv6HyTKydKKdb.jpg", // And Just Like That… (Max Original)
+  "https://image.tmdb.org/t/p/original/zHE48oJaLb9da91kghWSMWA6ywj.jpg", // A Knight in the Making (Max Original)
+  "https://image.tmdb.org/t/p/original/gdhFwnAfIlAE65ugGN8q3aj3fI9.jpg", // House of the Dragon: The House That Dragons Built (Max Original)
+  "https://image.tmdb.org/t/p/original/amoBYUQhXjUGdcPviy3ja6xJOOE.jpg", // L'affaire Laura Stern (Max Original France)
+  "https://image.tmdb.org/t/p/original/t0X9TVBkqJlTsdWZCTADsQqg4gC.jpg", // Youth (Max Original)
+  "https://image.tmdb.org/t/p/original/txj8ujTZwGUjpCdhCsQBnTlh4aS.jpg", // Stuart Fails to Save the Universe (Max Original)
+  "https://image.tmdb.org/t/p/original/4EGhg689jbAO865qWs8AznalyWl.jpg", // Paolo (Max Original France)
+  "https://image.tmdb.org/t/p/original/ivhZRKB2Z8gM2JdB1i2dEeUwaNr.jpg", // On the Roam (Max Original)
+  "https://image.tmdb.org/t/p/original/1iOeXGkaYAvyTos49faaBHUtwqe.jpg", // Dunkman (Max Original)
+  "https://image.tmdb.org/t/p/original/g0mWNUELRT1Oa2Phqt0YrqJeXX1.jpg", // Krypto Saves the Day! (Max Original)
+  "https://image.tmdb.org/t/p/original/6RNbBESf3DTaFqEys7slb7xzCUH.jpg", // Professeur Raoult vs le gang des Cerises (Max Original France)
 ];
 
 
 export default function App() {
   const [step] = useState(8);
   const [isXHovered, setIsXHovered] = useState(false);
-  const [isMusicMuted, setIsMusicMuted] = useState(hpMusicPlayer.getMuted());
+  const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false);
 
-  // Launch Harry Potter background music automatically upon arrival
+  // Automatically show the author account notification popup upon arrival
   useEffect(() => {
-    // Attempt instant autoplay
-    hpMusicPlayer.start();
-
-    // Subscribe to player mute/playback updates
-    const unsubscribe = hpMusicPlayer.subscribe((state) => {
-      setIsMusicMuted(state.isMuted);
-    });
-
-    // In case the browser enforces strict autoplay policy, unlock as soon as user touches/clicks anywhere
-    const handleUnlockAutoplay = () => {
-      hpMusicPlayer.start();
-    };
-
-    window.addEventListener("pointerdown", handleUnlockAutoplay, { once: true, capture: true });
-    window.addEventListener("click", handleUnlockAutoplay, { once: true, capture: true });
-    window.addEventListener("touchstart", handleUnlockAutoplay, { once: true, capture: true });
-    window.addEventListener("touchend", handleUnlockAutoplay, { once: true, capture: true });
-    window.addEventListener("keydown", handleUnlockAutoplay, { once: true, capture: true });
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener("pointerdown", handleUnlockAutoplay, { capture: true });
-      window.removeEventListener("click", handleUnlockAutoplay, { capture: true });
-      window.removeEventListener("touchstart", handleUnlockAutoplay, { capture: true });
-      window.removeEventListener("touchend", handleUnlockAutoplay, { capture: true });
-      window.removeEventListener("keydown", handleUnlockAutoplay, { capture: true });
-    };
+    const timer = setTimeout(() => {
+      setIsAuthorModalOpen(true);
+    }, 700);
+    return () => clearTimeout(timer);
   }, []);
   
   // Content animation variants
@@ -90,29 +73,25 @@ export default function App() {
 
       {/* TOP DECK - Header elements */}
       <header className="w-full max-w-7xl mx-auto px-6 sm:px-8 py-5 sm:py-6 flex justify-between items-center z-20 shrink-0 pointer-events-none">
-        <div />
-
-        {/* Discreet circular music controller */}
-        <motion.button
-          id="music-toggle-btn"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            hpMusicPlayer.toggle();
-          }}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.92 }}
-          className="pointer-events-auto w-10 h-10 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/80 border border-white/10 hover:border-[#8EA1AC]/50 backdrop-blur-md text-[#8EA1AC] hover:text-white transition-all duration-300 cursor-pointer shadow-lg"
-          aria-label={isMusicMuted ? "Activer la musique" : "Couper la musique"}
-        >
-          {isMusicMuted ? (
-            <VolumeX className="w-4 h-4 text-zinc-400 group-hover:text-zinc-200 transition-colors" />
-          ) : (
-            <Music className="w-4 h-4 text-[#8EA1AC] group-hover:text-white transition-colors" />
-          )}
-        </motion.button>
+        <div className="pointer-events-auto">
+          <AnimatePresence>
+            {isAuthorModalOpen && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setIsAuthorModalOpen(true)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/60 hover:bg-black/90 border border-white/10 hover:border-white/25 backdrop-blur-md text-xs text-zinc-300 hover:text-white transition-all duration-300 cursor-pointer shadow-lg"
+                aria-label="Informations Compte Auteur"
+              >
+                <span className="font-medium tracking-tight">Compte Auteur</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
       </header>
 
       {/* CORE DISPLAY - Dynamic centered cinematic area */}
@@ -227,7 +206,7 @@ export default function App() {
                   variants={itemVariants}
                   className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-[#8EA1AC] tracking-normal mb-3 sm:mb-4 uppercase"
                 >
-                  Arrive bientôt
+                  En novembre
                 </motion.h2>
  
                 {/* Cinema Infinite Scrolling Poster Ribbon */}
@@ -245,6 +224,22 @@ export default function App() {
                         transform: translate3d(-50%, 0, 0);
                       }
                     }
+                    .hbo-marquee-wrapper {
+                      -webkit-mask-image: linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+                      mask-image: linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+                    }
+                    @media (min-width: 640px) {
+                      .hbo-marquee-wrapper {
+                        -webkit-mask-image: linear-gradient(to right, transparent 0%, black 32px, black calc(100% - 32px), transparent 100%);
+                        mask-image: linear-gradient(to right, transparent 0%, black 32px, black calc(100% - 32px), transparent 100%);
+                      }
+                    }
+                    @media (min-width: 1024px) {
+                      .hbo-marquee-wrapper {
+                        -webkit-mask-image: linear-gradient(to right, transparent 0%, black 44px, black calc(100% - 44px), transparent 100%);
+                        mask-image: linear-gradient(to right, transparent 0%, black 44px, black calc(100% - 44px), transparent 100%);
+                      }
+                    }
                     .hbo-marquee-track {
                       display: flex;
                       width: max-content;
@@ -259,10 +254,6 @@ export default function App() {
                       }
                     }
                   `}} />
-
-                  {/* Left & Right Cinematic Atmospheric Fade Overlays */}
-                  <div className="absolute left-0 top-3 bottom-3 md:top-0 md:bottom-0 w-14 sm:w-28 md:w-48 bg-gradient-to-r from-[#050505] via-[#050505]/80 to-[#050505]/0 z-10 pointer-events-none" />
-                  <div className="absolute right-0 top-3 bottom-3 md:top-0 md:bottom-0 w-14 sm:w-28 md:w-48 bg-gradient-to-l from-[#050505] via-[#050505]/80 to-[#050505]/0 z-10 pointer-events-none" />
                   
                   {/* Ribbon Track with two identical groups for 100% mathematically seamless infinite loop */}
                   <div className="hbo-marquee-track">
@@ -344,6 +335,12 @@ export default function App() {
 
       {/* Floating interactive FAQ assistant */}
       <ChatAssistant isVisible={step >= 7} />
+
+      {/* White Author Account Notification Modal */}
+      <AuthorNotificationModal
+        isOpen={isAuthorModalOpen}
+        onClose={() => setIsAuthorModalOpen(false)}
+      />
     </main>
   );
 }
