@@ -8,7 +8,63 @@ import { motion, AnimatePresence } from "motion/react";
 import BackgroundEffects from "./components/BackgroundEffects";
 import VerticalLines from "./components/VerticalLines";
 import ChatAssistant from "./components/ChatAssistant";
-import AuthorNotificationModal from "./components/AuthorNotificationModal";
+
+function AuthorNotificationModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          {/* Backdrop overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm cursor-pointer"
+            aria-hidden="true"
+          />
+
+          {/* White Rounded Modal Box */}
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="author-modal-title"
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-full max-w-md bg-white text-black p-6 sm:p-8 z-10 shadow-2xl border border-zinc-200 rounded-2xl"
+          >
+            <h2
+              id="author-modal-title"
+              className="text-lg sm:text-xl font-bold tracking-tight text-black mb-3"
+            >
+              Compte Auteur
+            </h2>
+
+            <p className="text-sm text-zinc-700 leading-relaxed mb-6 font-normal">
+              Il sera possible d&apos;avoir un compte auteur (sur invitation et sélection). Avec ce compte auteur, vous pourrez publier vos articles, des critiques et des notes, mais aussi classer vos séries favorites de HBO et HBO Max ainsi que des films de Warner Bros., DC...
+            </p>
+
+            <button
+              onClick={onClose}
+              className="w-full py-3 px-4 bg-black hover:bg-zinc-800 text-white font-medium text-sm rounded-xl transition-colors cursor-pointer text-center"
+            >
+              Fermer
+            </button>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
 
 const posters = [
   "https://image.tmdb.org/t/p/original/kvFSpESyBZMjaeOJDx7RS3P1jey.jpg", // The Pitt (Max Original)
