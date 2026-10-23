@@ -1,13 +1,52 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@200;300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'MaxactuSansBold';
+  src: url('/Font/maxactu_sans_bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MaxactuDemi';
+  src: url('/Font/maxactu_demi.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MaxactuRegular';
+  src: url('/Font/Maxactu-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", sans-serif;
+  --font-maxactu-bold: 'MaxactuSansBold', sans-serif;
+  --font-maxactu-demi: 'MaxactuDemi', sans-serif;
+  --font-maxactu-regular: 'MaxactuRegular', sans-serif;
   --color-brand-accent: #8EA1AC;
   --color-brand-muted: #AAB5BC;
   --color-brand-bg: #050505;
   --color-brand-bg-sec: #0B0B0B;
+}
+
+.font-maxactu-bold {
+  font-family: 'MaxactuSansBold', sans-serif;
+}
+
+.font-maxactu-demi {
+  font-family: 'MaxactuDemi', sans-serif;
+}
+
+.font-maxactu-regular {
+  font-family: 'MaxactuRegular', sans-serif;
 }
 
 body {

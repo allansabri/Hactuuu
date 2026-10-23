@@ -3,400 +3,318 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import BackgroundEffects from "./components/BackgroundEffects";
-import VerticalLines from "./components/VerticalLines";
-import ChatAssistant from "./components/ChatAssistant";
+import React, { useState, useEffect } from "react";
+import { motion } from "motion/react";
 
-function AuthorNotificationModal({
-  isOpen,
-  onClose,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          {/* Backdrop overlay */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm cursor-pointer"
-            aria-hidden="true"
-          />
-
-          {/* White Rounded Modal Box */}
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="author-modal-title"
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 10 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-md bg-white text-black p-6 sm:p-8 z-10 shadow-2xl border border-zinc-200 rounded-2xl"
-          >
-            <h2
-              id="author-modal-title"
-              className="text-lg sm:text-xl font-bold tracking-tight text-black mb-3"
-            >
-              Compte Auteur
-            </h2>
-
-            <p className="text-sm text-zinc-700 leading-relaxed mb-6 font-normal">
-              Il sera possible d&apos;avoir un compte auteur (sur invitation et sélection). Avec ce compte auteur, vous pourrez publier vos articles, des critiques et des notes, mais aussi classer vos séries favorites de HBO et HBO Max ainsi que des films de Warner Bros., DC...
-            </p>
-
-            <button
-              onClick={onClose}
-              className="w-full py-3 px-4 bg-black hover:bg-zinc-800 text-white font-medium text-sm rounded-xl transition-colors cursor-pointer text-center"
-            >
-              Fermer
-            </button>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
+interface BackdropItem {
+  src: string;
+  mobilePosition: string;
 }
 
-const posters = [
-  "https://image.tmdb.org/t/p/original/kvFSpESyBZMjaeOJDx7RS3P1jey.jpg", // The Pitt (Max Original)
-  "https://image.tmdb.org/t/p/original/bB3G6Ug1jfsOUptb0RJsqrgMVta.jpg", // Creature Commandos (DC / Max Original)
-  "https://image.tmdb.org/t/p/original/yb4F1Oocq8GfQt6iIuAgYEBokhG.jpg", // Peacemaker (DC / Max Original)
-  "https://image.tmdb.org/t/p/original/ca5XiEFgyGsI38QT3wEKa1QVGX.jpg", // Hacks (Max Original)
-  "https://image.tmdb.org/t/p/original/SJCnXVBJZh7X7ePLt6XMp6TZAj.jpg", // Harry Potter (HBO / Max Original)
-  "https://image.tmdb.org/t/p/original/vknbnvegsTrzjqa8fsPyXN4wCHI.jpg", // The Seduction / Merteuil (Max Original France)
-  "https://image.tmdb.org/t/p/original/fi1b6U1kp73xheECzqwzMn8u3mX.jpg", // Adventure Time: Fionna and Cake (Max Original)
-  "https://image.tmdb.org/t/p/original/2b6E0pN19IGsmxSv6HyTKydKKdb.jpg", // And Just Like That… (Max Original)
-  "https://image.tmdb.org/t/p/original/zHE48oJaLb9da91kghWSMWA6ywj.jpg", // A Knight in the Making (Max Original)
-  "https://image.tmdb.org/t/p/original/gdhFwnAfIlAE65ugGN8q3aj3fI9.jpg", // House of the Dragon: The House That Dragons Built (Max Original)
-  "https://image.tmdb.org/t/p/original/amoBYUQhXjUGdcPviy3ja6xJOOE.jpg", // L'affaire Laura Stern (Max Original France)
-  "https://image.tmdb.org/t/p/original/t0X9TVBkqJlTsdWZCTADsQqg4gC.jpg", // Youth (Max Original)
-  "https://image.tmdb.org/t/p/original/txj8ujTZwGUjpCdhCsQBnTlh4aS.jpg", // Stuart Fails to Save the Universe (Max Original)
-  "https://image.tmdb.org/t/p/original/4EGhg689jbAO865qWs8AznalyWl.jpg", // Paolo (Max Original France)
-  "https://image.tmdb.org/t/p/original/ivhZRKB2Z8gM2JdB1i2dEeUwaNr.jpg", // On the Roam (Max Original)
-  "https://image.tmdb.org/t/p/original/1iOeXGkaYAvyTos49faaBHUtwqe.jpg", // Dunkman (Max Original)
-  "https://image.tmdb.org/t/p/original/g0mWNUELRT1Oa2Phqt0YrqJeXX1.jpg", // Krypto Saves the Day! (Max Original)
-  "https://image.tmdb.org/t/p/original/6RNbBESf3DTaFqEys7slb7xzCUH.jpg", // Professeur Raoult vs le gang des Cerises (Max Original France)
+const BACKDROP_IMAGES: BackdropItem[] = [
+  {
+    src: "https://image.tmdb.org/t/p/original/6gqezQJ2mkm4jreWwLyOZy2Vf6i.jpg",
+    mobilePosition: "73% center",
+  },
+  {
+    src: "https://image.tmdb.org/t/p/original/g0VmjKGMyipJSlPwlQvlLBvXTAQ.jpg",
+    mobilePosition: "70% center",
+  },
+  {
+    src: "https://image.tmdb.org/t/p/original/nvUfKNPSXamOdUd3JaYr3kTaHe8.jpg",
+    mobilePosition: "72% center",
+  },
+  {
+    src: "https://image.tmdb.org/t/p/original/xYhCspt1luWHTKyTqZNWKxO751K.jpg",
+    mobilePosition: "72% center",
+  },
+  {
+    src: "https://image.tmdb.org/t/p/original/3rGzY1RaVgWIP4GuOTwdHwHXSgM.jpg",
+    mobilePosition: "75% center",
+  },
+  {
+    src: "https://image.tmdb.org/t/p/original/gPdyPwpnZHOLhOVDwATsDhiD5ca.jpg",
+    mobilePosition: "70% center",
+  },
 ];
 
+interface BrandLogoItem {
+  name: string;
+  src: string;
+  heightClass: string;
+}
+
+const BRAND_LOGOS: BrandLogoItem[] = [
+  {
+    name: "HBO Max",
+    src: "/logos/hbomax-2025.png",
+    heightClass: "h-6 sm:h-7 md:h-8",
+  },
+  {
+    name: "HBO",
+    src: "/logos/hbo.svg",
+    heightClass: "h-5 sm:h-6 md:h-7",
+  },
+  {
+    name: "HBO Max Sport",
+    src: "/logos/hbomax-sport.png",
+    heightClass: "h-6 sm:h-7 md:h-8",
+  },
+];
+
+// Repeat 4 times for seamless continuous infinite slide
+const SLIDING_LOGOS = [...BRAND_LOGOS, ...BRAND_LOGOS, ...BRAND_LOGOS, ...BRAND_LOGOS];
 
 export default function App() {
-  const [step] = useState(8);
-  const [isXHovered, setIsXHovered] = useState(false);
-  const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFadingToBlack, setIsFadingToBlack] = useState(false);
 
-  // Automatically show the author account notification popup upon arrival
+  // Preload all backdrop images immediately on mount for instant zero-lag rendering
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsAuthorModalOpen(true);
-    }, 700);
-    return () => clearTimeout(timer);
+    BACKDROP_IMAGES.forEach((item) => {
+      const img = new Image();
+      img.src = item.src;
+    });
   }, []);
-  
-  // Content animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.25,
-        delayChildren: 0.1,
-      },
-    },
-  };
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 12 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
-    },
-  };
+  // 5 seconds fixed display followed by a smooth dip-to-black transition (fondu au noir)
+  useEffect(() => {
+    let switchTimer: ReturnType<typeof setTimeout>;
+
+    const holdTimer = setTimeout(() => {
+      // 1. Fade image out into black
+      setIsFadingToBlack(true);
+
+      // 2. Once screen has reached pure black (~650ms), swap image and fade back in
+      switchTimer = setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % BACKDROP_IMAGES.length);
+        setIsFadingToBlack(false);
+      }, 650);
+    }, 5000);
+
+    return () => {
+      clearTimeout(holdTimer);
+      if (switchTimer) clearTimeout(switchTimer);
+    };
+  }, [currentIndex]);
+
 
   return (
-    <main className="relative w-screen h-screen min-h-screen bg-[#050505] text-white flex flex-col justify-between items-center overflow-hidden font-sans select-none">
-      {/* Cinematic Dynamic Background & Atmospheric VFX */}
-      <BackgroundEffects step={step} />
+    <div className="relative w-full min-h-screen bg-[#08090C] text-white flex flex-col justify-between overflow-x-hidden overflow-y-auto md:overflow-hidden select-none font-sans">
+      {/* Smooth multi-stop cinematic mask to completely eliminate any visible line or separation */}
+      <style>{`
+        .cinematic-backdrop-mask {
+          -webkit-mask-image: linear-gradient(to right, 
+            rgba(0, 0, 0, 0) 0%, 
+            rgba(0, 0, 0, 0) 12%, 
+            rgba(0, 0, 0, 0.02) 18%, 
+            rgba(0, 0, 0, 0.06) 25%, 
+            rgba(0, 0, 0, 0.13) 32%, 
+            rgba(0, 0, 0, 0.23) 40%, 
+            rgba(0, 0, 0, 0.36) 48%, 
+            rgba(0, 0, 0, 0.52) 57%, 
+            rgba(0, 0, 0, 0.70) 66%, 
+            rgba(0, 0, 0, 0.85) 75%, 
+            rgba(0, 0, 0, 0.95) 82%, 
+            rgba(0, 0, 0, 1) 86%, 
+            rgba(0, 0, 0, 1) 100%
+          );
+          mask-image: linear-gradient(to right, 
+            rgba(0, 0, 0, 0) 0%, 
+            rgba(0, 0, 0, 0) 12%, 
+            rgba(0, 0, 0, 0.02) 18%, 
+            rgba(0, 0, 0, 0.06) 25%, 
+            rgba(0, 0, 0, 0.13) 32%, 
+            rgba(0, 0, 0, 0.23) 40%, 
+            rgba(0, 0, 0, 0.36) 48%, 
+            rgba(0, 0, 0, 0.52) 57%, 
+            rgba(0, 0, 0, 0.70) 66%, 
+            rgba(0, 0, 0, 0.85) 75%, 
+            rgba(0, 0, 0, 0.95) 82%, 
+            rgba(0, 0, 0, 1) 86%, 
+            rgba(0, 0, 0, 1) 100%
+          );
+        }
+        .hero-backdrop-img {
+          object-position: var(--mobile-pos, 72% center);
+        }
+        @media (min-width: 768px) {
+          .cinematic-backdrop-mask {
+            -webkit-mask-image: linear-gradient(to right, 
+              transparent 0%, 
+              transparent 18%, 
+              rgba(0,0,0,0.01) 23%, 
+              rgba(0,0,0,0.05) 28%, 
+              rgba(0,0,0,0.13) 34%, 
+              rgba(0,0,0,0.26) 41%, 
+              rgba(0,0,0,0.44) 49%, 
+              rgba(0,0,0,0.64) 57%, 
+              rgba(0,0,0,0.82) 66%, 
+              rgba(0,0,0,0.94) 75%, 
+              black 85%, 
+              black 100%
+            );
+            mask-image: linear-gradient(to right, 
+              transparent 0%, 
+              transparent 18%, 
+              rgba(0,0,0,0.01) 23%, 
+              rgba(0,0,0,0.05) 28%, 
+              rgba(0,0,0,0.13) 34%, 
+              rgba(0,0,0,0.26) 41%, 
+              rgba(0,0,0,0.44) 49%, 
+              rgba(0,0,0,0.64) 57%, 
+              rgba(0,0,0,0.82) 66%, 
+              rgba(0,0,0,0.94) 75%, 
+              black 85%, 
+              black 100%
+            );
+          }
+          .hero-backdrop-img {
+            object-position: center center !important;
+          }
+        }
 
-      {/* TOP DECK - Header elements */}
-      <header className="w-full max-w-7xl mx-auto px-6 sm:px-8 py-5 sm:py-6 flex justify-between items-center z-20 shrink-0 pointer-events-none">
-        <div className="pointer-events-auto">
-          <AnimatePresence>
-            {isAuthorModalOpen && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => setIsAuthorModalOpen(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/60 hover:bg-black/90 border border-white/10 hover:border-white/25 backdrop-blur-md text-xs text-zinc-300 hover:text-white transition-all duration-300 cursor-pointer shadow-lg"
-                aria-label="Informations Compte Auteur"
-              >
-                <span className="font-medium tracking-tight">Compte Auteur</span>
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
-      </header>
+        @keyframes slideLogos {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-25%);
+          }
+        }
 
-      {/* CORE DISPLAY - Dynamic centered cinematic area */}
-      <div className="flex-1 w-full flex flex-col justify-center items-center relative z-10 px-4">
-        {/* Animated Cylinder Lighting Backdrop */}
-        <VerticalLines step={step} />
+        .logos-slide-track {
+          display: flex;
+          align-items: center;
+          width: max-content;
+          animation: slideLogos 18s linear infinite;
+        }
 
-        {/* Dynamic Logo Manifestation Area with perfect 100% pixel-perfect continuity */}
-        <div className={`relative flex items-center justify-center overflow-visible transition-all duration-1000 ${
-          step >= 7 
-            ? "w-[94vw] max-w-[580px] sm:max-w-[720px] md:max-w-[900px] lg:max-w-[1100px] h-[110px] sm:h-[145px] md:h-[195px] lg:h-[230px] mb-1 sm:mb-1.5 md:mb-2 mt-1 sm:mt-2" 
-            : "w-[320px] sm:w-[440px] h-[110px] sm:h-[150px] mb-4 md:mb-5"
-        }`}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{
-              opacity: 
-                step < 3 ? 0 : 1,
-              scale: 
-                step < 5 ? 1.0 : 
-                step === 5 ? 1.03 : 
-                step === 6 ? 1.06 : 
-                step === 7 ? 1.09 : 1.12, // Continuous elegant cinematic swelling without shrinking
-              y: 
-                step < 3 ? "24%" :
-                step === 3 || step === 4 ? "24%" : // Kept centered for classic HBO
-                step === 5 ? "11%" : 
-                "0%", // Slides seamlessly up so HBO rises and max emerges below
-              clipPath: 
-                step < 5 
-                  ? "inset(0% 0% 42% 0%)" // Crops out the bottom "max" completely
-                  : step >= 7
-                  ? "none" // Prevents any cropping for iridescent HBO Max and custom final logo
-                  : "inset(0% 0% 0% 0%)", // Reveals "max" perfectly
-              filter: 
-                step < 3 
-                  ? "grayscale(1) brightness(0.1) blur(8px)"
-                  : step === 3 || step === 4
-                  ? "grayscale(1) brightness(1.25) contrast(1.1) blur(0px)" 
-                  : step === 5
-                  ? "grayscale(1) brightness(1.25) contrast(1.1) blur(0px)" 
-                  : "grayscale(0) brightness(1.0) contrast(1.05) blur(0px)" 
-            }}
-            transition={
-              step >= 7
-                ? {
-                    scale: { duration: 1.8, ease: [0.16, 1, 0.3, 1] },
-                    y: { duration: 1.8, ease: [0.16, 1, 0.3, 1] },
-                    clipPath: { duration: 1.8, ease: [0.16, 1, 0.3, 1] },
-                    filter: { duration: 2.2, ease: "easeInOut" }, // Slow, magical color bloom
-                    opacity: { duration: 1.8 },
-                  }
-                : {
-                    duration: 2.2,
-                    ease: [0.16, 1, 0.3, 1],
-                  }
-            }
-            className="absolute w-full h-full flex items-center justify-center pointer-events-none"
-          >
-            {/* Iridescent Logo */}
-            <motion.img
-              animate={{
-                opacity: step < 8 ? 1 : 0,
-                scale: step < 8 ? 1.0 : 0.96,
-                filter: step < 8 ? "none" : "blur(12px)",
-              }}
-              transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1] }}
-              src="https://beam-images.warnermediacdn.com/2025-06/hbo-max-logo-iridescent-2025.png?host=wbd-dotcom-drupal-prd-us-east-1.s3.amazonaws.com"
-              alt="HBO Max Logo"
-              referrerPolicy="no-referrer"
-              className="absolute w-[80%] sm:w-[85%] md:w-[90%] lg:w-[94%] h-full object-contain select-none"
-            />
+        .logos-slide-track:hover {
+          animation-play-state: paused;
+        }
 
-            {/* Custom Final Logo */}
-            <motion.img
-              initial={{ opacity: 0, scale: 1.05, filter: "brightness(1.5) blur(12px)" }}
-              animate={{
-                opacity: step >= 8 ? 1 : 0,
-                scale: step >= 8 ? 1.0 : 1.05,
-                filter: step >= 8 ? "brightness(1.15) blur(0px)" : "brightness(1.5) blur(12px)",
-              }}
-              transition={{ duration: 2.0, ease: [0.16, 1, 0.3, 1] }}
-              src="https://i.ibb.co/5WnymfKN/HBO-Max-Actu.png"
-              alt="HBO Max Actu Logo"
-              referrerPolicy="no-referrer"
-              className="absolute w-[75vw] max-w-[270px] sm:max-w-[360px] md:max-w-[480px] lg:max-w-[570px] h-auto object-contain select-none"
-            />
-          </motion.div>
-        </div>
+        .logos-slider-mask {
+          -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+        }
+      `}</style>
 
-        {/* Tagline, subtext and poster carousel - revealed in Step 7 */}
-        <div className={`w-full max-w-5xl md:max-w-none text-center flex flex-col items-center overflow-visible transition-all duration-1000 ${
-          step >= 8 ? "-mt-5 sm:-mt-10 md:-mt-16 lg:-mt-22" : ""
-        }`}>
-          <AnimatePresence>
-            {step >= 7 && (
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="w-full flex flex-col items-center overflow-visible"
-              >
-                {/* Main luxurious uppercase headers */}
-                <motion.h1 
-                  variants={itemVariants}
-                  className="font-display text-[11px] min-[390px]:text-xs sm:text-base md:text-lg tracking-[0.05em] sm:tracking-[0.08em] font-light text-white mb-1 sm:mb-1.5 uppercase whitespace-nowrap"
-                >
-                  Le guide de références HBO Max en France
-                </motion.h1>
- 
-                <motion.h2 
-                  variants={itemVariants}
-                  className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-[#8EA1AC] tracking-normal mb-3 sm:mb-4 uppercase"
-                >
-                  En novembre
-                </motion.h2>
- 
-                {/* Cinema Infinite Scrolling Poster Ribbon */}
-                <motion.div 
-                  variants={itemVariants}
-                  className="relative -mx-4 w-[calc(100%+2rem)] max-w-none md:mx-0 md:max-w-none md:w-screen overflow-hidden py-3 md:py-4 pointer-events-auto z-20 hbo-marquee-wrapper"
-                >
-                  {/* Inject Hardware-Accelerated CSS Custom Keyframes for seamless 60fps+ Compositor Scrolling */}
-                  <style dangerouslySetInnerHTML={{ __html: `
-                    @keyframes hboMarquee {
-                      0% {
-                        transform: translate3d(0, 0, 0);
-                      }
-                      100% {
-                        transform: translate3d(-50%, 0, 0);
-                      }
-                    }
-                    .hbo-marquee-wrapper {
-                      -webkit-mask-image: linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
-                      mask-image: linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
-                    }
-                    @media (min-width: 640px) {
-                      .hbo-marquee-wrapper {
-                        -webkit-mask-image: linear-gradient(to right, transparent 0%, black 32px, black calc(100% - 32px), transparent 100%);
-                        mask-image: linear-gradient(to right, transparent 0%, black 32px, black calc(100% - 32px), transparent 100%);
-                      }
-                    }
-                    @media (min-width: 1024px) {
-                      .hbo-marquee-wrapper {
-                        -webkit-mask-image: linear-gradient(to right, transparent 0%, black 44px, black calc(100% - 44px), transparent 100%);
-                        mask-image: linear-gradient(to right, transparent 0%, black 44px, black calc(100% - 44px), transparent 100%);
-                      }
-                    }
-                    .hbo-marquee-track {
-                      display: flex;
-                      width: max-content;
-                      animation: hboMarquee 38s linear infinite;
-                      will-change: transform;
-                      backface-visibility: hidden;
-                      -webkit-backface-visibility: hidden;
-                    }
-                    @media (hover: hover) and (pointer: fine) {
-                      .hbo-marquee-wrapper:hover .hbo-marquee-track {
-                        animation-play-state: paused;
-                      }
-                    }
-                  `}} />
-                  
-                  {/* Ribbon Track with two identical groups for 100% mathematically seamless infinite loop */}
-                  <div className="hbo-marquee-track">
-                    {[0, 1].map((groupIndex) => (
-                      <div 
-                        key={groupIndex} 
-                        className="flex gap-3 sm:gap-4 md:gap-6 pr-3 sm:pr-4 md:pr-6 shrink-0"
-                        aria-hidden={groupIndex === 1}
-                      >
-                        {posters.map((poster, index) => (
-                          <div 
-                            key={index}
-                            className="w-[95px] sm:w-[130px] md:w-[172px] h-[142px] sm:h-[195px] md:h-[258px] flex-shrink-0 rounded-none overflow-hidden border border-white/5 bg-zinc-900/40 shadow-2xl relative select-none transition-transform duration-300 md:hover:scale-105"
-                          >
-                            <img 
-                              src={poster} 
-                              alt={`Poster ${index}`}
-                              referrerPolicy="no-referrer"
-                              draggable="false"
-                              className="w-full h-full object-cover select-none pointer-events-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+      {/* ================= RIGHT-SIDE CINEMATIC SLIDESHOW ================= */}
+      <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden z-0 cinematic-backdrop-mask">
+        {/* Fixed steady images without any scale/zoom */}
+        {BACKDROP_IMAGES.map((item, idx) => (
+          <img
+            key={item.src}
+            src={item.src}
+            alt="HBO Max Actu visual"
+            loading={idx === 0 ? "eager" : "lazy"}
+            className={`hero-backdrop-img absolute inset-0 w-full h-full object-cover ${
+              idx === currentIndex ? "opacity-100" : "opacity-0"
+            }`}
+            style={{
+              ["--mobile-pos" as string]: item.mobilePosition,
+            } as React.CSSProperties}
+          />
+        ))}
+
+        {/* Dip-to-black overlay: smooth fade to black and back to reveal next image */}
+        <div
+          className={`absolute inset-0 w-full h-full bg-[#08090C] transition-opacity duration-[650ms] ease-in-out ${
+            isFadingToBlack ? "opacity-100" : "opacity-0"
+          }`}
+        />
       </div>
 
-      {/* BOTTOM DECK - Footer elements */}
-      <footer className="w-full px-8 py-6 z-20 shrink-0 pointer-events-none">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: step >= 7 ? 0.65 : 0 }}
-          transition={{ duration: 1.5, delay: 0.6 }}
-          className="flex flex-col items-center justify-center pointer-events-auto relative"
+      {/* ================= HEADER: LOGO TOP-LEFT (NO BUTTONS) ================= */}
+      <header className="relative z-10 w-full px-6 sm:px-10 md:px-16 pt-8 md:pt-10 flex items-center justify-between">
+        <a
+          href="https://x.com/HBOMaxActuFR"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block transition-transform hover:scale-[1.02] focus:outline-none"
+          title="HBO Max Actu"
         >
-          {/* Extremely minimalist micro tooltip */}
-          <AnimatePresence>
-            {isXHovered && (
-              <motion.div
-                initial={{ opacity: 0, y: 3, scale: 0.96 }}
-                animate={{ opacity: 1, y: -4, scale: 1 }}
-                exit={{ opacity: 0, y: 3, scale: 0.96 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute bottom-full mb-2 bg-[#090a0c]/95 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded text-[10px] font-mono tracking-widest text-[#8EA1AC] uppercase select-none pointer-events-none shadow-2xl"
-              >
-                @HBOMaxActuFR
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <img
+            src="https://i.ibb.co/5WnymfKN/HBO-Max-Actu.png"
+            alt="HBO Max Actu"
+            className="h-5 sm:h-6 md:h-7 w-auto object-contain filter drop-shadow-md"
+          />
+        </a>
+      </header>
 
-          {/* X monochrome logo */}
+      {/* ================= MAIN CONTENT: LEFT COLUMN ================= */}
+      <main className="relative z-10 w-full px-6 sm:px-10 md:px-16 py-12 md:py-8 flex-1 flex flex-col justify-center max-w-4xl">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="space-y-4 sm:space-y-5"
+        >
+          {/* Main Title: EN NOVEMBRE (MaxactuSansBold, all caps, larger font) */}
+          <h1
+            className="text-4xl sm:text-5xl md:text-5xl lg:text-[52px] xl:text-6xl font-bold tracking-tight uppercase font-maxactu-bold drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
+            style={{ color: "#8EA1AC", fontFamily: "'MaxactuSansBold', sans-serif" }}
+          >
+            EN NOVEMBRE
+          </h1>
+
+          {/* Description Text: maxactu_demi */}
+          <p
+            className="text-xs sm:text-sm md:text-[14px] text-white font-normal leading-relaxed max-w-xl text-pretty font-maxactu-demi drop-shadow-[0_1px_5px_rgba(0,0,0,0.9)]"
+            style={{ fontFamily: "'MaxactuDemi', sans-serif" }}
+          >
+            Bienvenue chez HBO Max Actu, le premier média indépendant sur HBO et HBO Max en France.
+            Retrouvez les prochaines sorties, les projets en développement et en production, les bandes-annonces,
+            le top 10, des articles, des critiques et bien plus encore...
+          </p>
+        </motion.div>
+
+        {/* ================= AUTO-SLIDING LOGOS (positioned midway between text and footer) ================= */}
+        <div className="mt-8 sm:mt-12 md:mt-16 max-w-md sm:max-w-lg md:max-w-xl">
+          <div className="relative w-full overflow-hidden logos-slider-mask py-2">
+            <div className="logos-slide-track">
+              {SLIDING_LOGOS.map((logo, index) => (
+                <div
+                  key={`${logo.name}-${index}`}
+                  className="flex-shrink-0 flex items-center justify-center px-5 sm:px-7 md:px-8"
+                  title={logo.name}
+                >
+                  <img
+                    src={logo.src}
+                    alt={logo.name}
+                    loading="lazy"
+                    className={`${logo.heightClass} w-auto object-contain opacity-80 hover:opacity-100 transition-opacity filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* ================= FOOTER / SOCIAL LINK ================= */}
+      <footer className="relative z-10 w-full px-6 sm:px-10 md:px-16 pb-6 md:pb-8 flex items-center justify-between text-xs text-zinc-400">
+        <div className="flex items-center gap-2">
+          <span>Suivez l&apos;actualité en direct sur</span>
           <a
             href="https://x.com/HBOMaxActuFR"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="X (Twitter) - @HBOMaxActuFR"
-            onMouseEnter={() => setIsXHovered(true)}
-            onMouseLeave={() => setIsXHovered(false)}
-            onFocus={() => setIsXHovered(true)}
-            onBlur={() => setIsXHovered(false)}
-            className="text-[#AAB5BC] hover:text-white transition-all duration-300 hover:scale-105 p-2 flex items-center justify-center"
+            className="inline-flex items-center gap-1.5 font-medium text-white hover:text-[#8EA1AC] transition-colors"
           >
+            {/* X Logo */}
             <svg
-              className="w-4 h-4"
-              fill="currentColor"
+              className="w-3.5 h-3.5 fill-current"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
             </svg>
+            <span>@HBOMaxActuFR</span>
           </a>
-        </motion.div>
+        </div>
       </footer>
-
-      {/* Floating interactive FAQ assistant */}
-      <ChatAssistant isVisible={step >= 7} />
-
-      {/* White Author Account Notification Modal */}
-      <AuthorNotificationModal
-        isOpen={isAuthorModalOpen}
-        onClose={() => setIsAuthorModalOpen(false)}
-      />
-    </main>
+    </div>
   );
 }
