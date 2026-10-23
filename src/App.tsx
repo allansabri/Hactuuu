@@ -48,17 +48,17 @@ const BRAND_LOGOS: BrandLogoItem[] = [
   {
     name: "HBO Max",
     src: "/logos/hbomax-2025.png",
-    heightClass: "h-6 sm:h-7 md:h-8",
+    heightClass: "h-9 sm:h-10 md:h-8",
   },
   {
     name: "HBO",
     src: "/logos/hbo.svg",
-    heightClass: "h-5 sm:h-6 md:h-7",
+    heightClass: "h-7 sm:h-8 md:h-7",
   },
   {
     name: "HBO Max Sport",
     src: "/logos/hbomax-sport.png",
-    heightClass: "h-6 sm:h-7 md:h-8",
+    heightClass: "h-9 sm:h-10 md:h-8",
   },
 ];
 
@@ -100,7 +100,7 @@ export default function App() {
 
 
   return (
-    <div className="relative w-full min-h-screen bg-[#08090C] text-white flex flex-col justify-between overflow-x-hidden overflow-y-auto md:overflow-hidden select-none font-sans">
+    <div className="relative w-full min-h-screen min-h-[100dvh] bg-[#08090C] text-white flex flex-col justify-between overflow-x-hidden overflow-y-auto md:overflow-hidden select-none font-sans">
       {/* Smooth multi-stop cinematic mask to completely eliminate any visible line or separation */}
       <style>{`
         .cinematic-backdrop-mask {
@@ -227,7 +227,7 @@ export default function App() {
       </div>
 
       {/* ================= HEADER: LOGO TOP-LEFT (NO BUTTONS) ================= */}
-      <header className="relative z-10 w-full px-6 sm:px-10 md:px-16 pt-8 md:pt-10 flex items-center justify-between">
+      <header className="relative z-10 w-full px-6 sm:px-10 md:px-16 pt-[max(1.75rem,env(safe-area-inset-top))] md:pt-10 flex items-center justify-between">
         <a
           href="https://x.com/HBOMaxActuFR"
           target="_blank"
@@ -244,7 +244,7 @@ export default function App() {
       </header>
 
       {/* ================= MAIN CONTENT: LEFT COLUMN ================= */}
-      <main className="relative z-10 w-full px-6 sm:px-10 md:px-16 py-12 md:py-8 flex-1 flex flex-col justify-center max-w-4xl">
+      <main className="relative z-10 w-full px-6 sm:px-10 md:px-16 py-10 md:py-8 flex-1 flex flex-col justify-center max-w-4xl">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -261,7 +261,7 @@ export default function App() {
 
           {/* Description Text: maxactu_demi */}
           <p
-            className="text-xs sm:text-sm md:text-[14px] text-white font-normal leading-relaxed max-w-xl text-pretty font-maxactu-demi drop-shadow-[0_1px_5px_rgba(0,0,0,0.9)]"
+            className="text-[15px] sm:text-base md:text-[14px] text-white font-normal leading-relaxed max-w-xl text-pretty font-maxactu-demi drop-shadow-[0_1px_5px_rgba(0,0,0,0.9)]"
             style={{ fontFamily: "'MaxactuDemi', sans-serif" }}
           >
             Bienvenue chez HBO Max Actu, le premier média indépendant sur HBO et HBO Max en France.
@@ -294,7 +294,7 @@ export default function App() {
       </main>
 
       {/* ================= FOOTER / SOCIAL LINK ================= */}
-      <footer className="relative z-10 w-full px-6 sm:px-10 md:px-16 pb-6 md:pb-8 flex items-center justify-between text-xs text-zinc-400">
+      <footer className="relative z-10 w-full px-6 sm:px-10 md:px-16 pb-12 sm:pb-10 md:pb-8 pb-[max(3rem,calc(env(safe-area-inset-bottom)+1.5rem))] flex items-center justify-between text-xs text-zinc-400">
         <div className="flex items-center gap-2">
           <span>Suivez l&apos;actualité en direct sur</span>
           <a
