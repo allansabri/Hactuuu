@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -54,7 +54,7 @@ const QUESTIONS: Question[] = [
   }
 ];
 
-interface ClientQuizState {
+interface LockState {
   unlocked: boolean;
   unlockedAt?: number;
   attemptsLeft: number;
@@ -65,7 +65,7 @@ interface ClientQuizState {
 
 const STATE_FILE_PATH = path.resolve(__dirname, 'quiz_state.json');
 
-function loadAllStates(): Record<string, ClientQuizState> {
+function loadAllStates(): Record<string, LockState> {
   try {
     if (fs.existsSync(STATE_FILE_PATH)) {
       const data = fs.readFileSync(STATE_FILE_PATH, 'utf-8');
@@ -77,7 +77,7 @@ function loadAllStates(): Record<string, ClientQuizState> {
   return {};
 }
 
-function saveAllStates(states: Record<string, ClientQuizState>): void {
+function saveAllStates(states: Record<string, LockState>): void {
   try {
     fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(states, null, 2), 'utf-8');
   } catch (err) {
@@ -85,71 +85,149 @@ function saveAllStates(states: Record<string, ClientQuizState>): void {
   }
 }
 
-const memoryStates: Record<string, ClientQuizState> = loadAllStates();
-
-function getClientIdentifier(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  let ip = '';
-  if (typeof forwarded === 'string') {
-    ip = forwarded.split(',')[0].trim();
-  } else if (Array.isArray(forwarded) && forwarded[0]) {
-    ip = forwarded[0].trim();
-  } else {
-    ip = req.socket.remoteAddress || '127.0.0.1';
-  }
-
-  // Also support an optional persistent client header for extra robustness
-  const clientId = req.headers['x-client-id'] as string;
-  if (clientId && clientId.length > 5) {
-    return `${ip}_${clientId}`;
-  }
-  return ip;
-}
+const memoryStates: Record<string, LockState> = loadAllStates();
 
 function getDailyQuestion(): Question {
-  // Rotate questions every 24 hours based on UTC epoch day
   const dayIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
   const index = Math.abs(dayIndex) % QUESTIONS.length;
   return QUESTIONS[index];
 }
 
-function getOrCreateClientState(clientId: string): ClientQuizState {
-  const currentQ = getDailyQuestion();
-  let state = memoryStates[clientId];
+function parseCookies(req: Request): Record<string, string> {
+  const list: Record<string, string> = {};
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return list;
 
-  if (!state) {
-    state = {
+  cookieHeader.split(';').forEach((cookie) => {
+    let [name, ...rest] = cookie.split('=');
+    name = name?.trim();
+    if (!name) return;
+    const value = rest.join('=').trim();
+    if (!value) return;
+    list[name] = decodeURIComponent(value);
+  });
+  return list;
+}
+
+function getIdentifiers(req: Request): { ipKey: string; clientKey?: string } {
+  const forwarded = req.headers['x-forwarded-for'];
+  let rawIp = '';
+  if (typeof forwarded === 'string') {
+    rawIp = forwarded.split(',')[0].trim();
+  } else if (Array.isArray(forwarded) && forwarded[0]) {
+    rawIp = forwarded[0].trim();
+  } else {
+    rawIp = req.socket.remoteAddress || req.ip || '127.0.0.1';
+  }
+
+  const ipKey = `ip:${rawIp}`;
+
+  const cookies = parseCookies(req);
+  let bodyClientId: string | undefined;
+  if (req.body && typeof req.body === 'object') {
+    bodyClientId = req.body.clientId;
+  }
+  const headerClientId = (req.headers['x-client-id'] as string) || (req.query.clientId as string);
+  const cookieClientId = cookies['hbo_client_uid'];
+  const effectiveClientId = bodyClientId || headerClientId || cookieClientId;
+
+  return {
+    ipKey,
+    clientKey: effectiveClientId ? `client:${effectiveClientId}` : undefined
+  };
+}
+
+function getEffectiveState(req: Request): { state: LockState; keys: string[] } {
+  const currentQ = getDailyQuestion();
+  const { ipKey, clientKey } = getIdentifiers(req);
+  const keys = [ipKey];
+  if (clientKey) keys.push(clientKey);
+
+  // 1. Check if any matching key is unlocked
+  for (const k of keys) {
+    const s = memoryStates[k];
+    if (s && s.unlocked) {
+      return { state: s, keys };
+    }
+  }
+
+  // 2. Check if any matching key is currently locked
+  for (const k of keys) {
+    const s = memoryStates[k];
+    if (s && s.lockedUntil > Date.now()) {
+      return { state: s, keys };
+    }
+  }
+
+  // 3. Check if any matching key has state
+  for (const k of keys) {
+    const s = memoryStates[k];
+    if (s) {
+      if (s.lockedUntil > 0 && Date.now() >= s.lockedUntil) {
+        s.lockedUntil = 0;
+        s.attemptsLeft = 3;
+        s.lockoutReason = undefined;
+        s.currentQuestionId = currentQ.id;
+        saveAllStates(memoryStates);
+      }
+      return { state: s, keys };
+    }
+  }
+
+  // 4. Fresh default state
+  const newState: LockState = {
+    unlocked: false,
+    attemptsLeft: 3,
+    lockedUntil: 0,
+    currentQuestionId: currentQ.id
+  };
+
+  keys.forEach((k) => {
+    memoryStates[k] = { ...newState };
+  });
+  saveAllStates(memoryStates);
+
+  return { state: newState, keys };
+}
+
+function updateStateForKeys(keys: string[], updater: (prev: LockState) => LockState): LockState {
+  let updatedState: LockState | null = null;
+  keys.forEach((k) => {
+    const current = memoryStates[k] || {
       unlocked: false,
       attemptsLeft: 3,
       lockedUntil: 0,
-      currentQuestionId: currentQ.id
+      currentQuestionId: getDailyQuestion().id
     };
-    memoryStates[clientId] = state;
-    saveAllStates(memoryStates);
-    return state;
-  }
-
-  // If locked, check if the 24h lockout period has passed
-  if (state.lockedUntil > 0 && Date.now() >= state.lockedUntil) {
-    state.lockedUntil = 0;
-    state.attemptsLeft = 3;
-    state.lockoutReason = undefined;
-    state.currentQuestionId = currentQ.id;
-    saveAllStates(memoryStates);
-  }
-
-  return state;
+    const updated = updater({ ...current });
+    memoryStates[k] = updated;
+    updatedState = updated;
+  });
+  saveAllStates(memoryStates);
+  return updatedState!;
 }
 
 async function startServer() {
   const app = express();
   app.set('trust proxy', true);
+
+  // Comprehensive CORS Middleware
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-client-id, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    next();
+  });
+
   app.use(express.json());
+  app.use(express.text({ type: ['text/plain', 'application/json'] }));
 
   // API Route: GET /api/quiz/status
   app.get('/api/quiz/status', (req: Request, res: Response) => {
-    const clientId = getClientIdentifier(req);
-    const state = getOrCreateClientState(clientId);
+    const { state } = getEffectiveState(req);
     const dailyQ = getDailyQuestion();
 
     if (state.unlocked) {
@@ -160,11 +238,11 @@ async function startServer() {
       });
     }
 
-    if (state.lockedUntil > 0 && Date.now() < state.lockedUntil) {
+    if (state.lockedUntil > Date.now()) {
       return res.json({
         unlocked: false,
         locked: true,
-        lockoutReason: state.lockoutReason,
+        lockoutReason: state.lockoutReason || 'anti-cheat',
         remainingMs: Math.max(0, state.lockedUntil - Date.now()),
         lockedUntil: state.lockedUntil
       });
@@ -173,7 +251,7 @@ async function startServer() {
     return res.json({
       unlocked: false,
       locked: false,
-      attemptsLeft: state.attemptsLeft,
+      attemptsLeft: state.attemptsLeft ?? 3,
       question: {
         id: dailyQ.id,
         question: dailyQ.question,
@@ -184,8 +262,7 @@ async function startServer() {
 
   // API Route: POST /api/quiz/answer
   app.post('/api/quiz/answer', (req: Request, res: Response) => {
-    const clientId = getClientIdentifier(req);
-    const state = getOrCreateClientState(clientId);
+    const { state, keys } = getEffectiveState(req);
     const dailyQ = getDailyQuestion();
 
     if (state.unlocked) {
@@ -196,24 +273,40 @@ async function startServer() {
       });
     }
 
-    if (state.lockedUntil > 0 && Date.now() < state.lockedUntil) {
-      return res.status(403).json({
+    if (state.lockedUntil > Date.now()) {
+      return res.json({
         locked: true,
-        lockoutReason: state.lockoutReason,
-        remainingMs: Math.max(0, state.lockedUntil - Date.now())
+        unlocked: false,
+        lockoutReason: state.lockoutReason || 'anti-cheat',
+        remainingMs: Math.max(0, state.lockedUntil - Date.now()),
+        lockedUntil: state.lockedUntil,
+        message: "Accès actuellement verrouillé."
       });
     }
 
-    const { chosenIndex } = req.body;
+    let chosenIndex: number | undefined;
+    if (typeof req.body === 'object' && req.body !== null) {
+      chosenIndex = req.body.chosenIndex;
+    } else if (typeof req.body === 'string') {
+      try {
+        const parsed = JSON.parse(req.body);
+        chosenIndex = parsed.chosenIndex;
+      } catch {
+        // ignore
+      }
+    }
+
     if (typeof chosenIndex !== 'number' || chosenIndex < 0 || chosenIndex >= dailyQ.options.length) {
       return res.status(400).json({ error: "Option invalide" });
     }
 
     if (chosenIndex === dailyQ.correctIndex) {
-      state.unlocked = true;
-      state.unlockedAt = Date.now();
-      state.lockedUntil = 0;
-      saveAllStates(memoryStates);
+      updateStateForKeys(keys, (prev) => ({
+        ...prev,
+        unlocked: true,
+        unlockedAt: Date.now(),
+        lockedUntil: 0
+      }));
 
       return res.json({
         success: true,
@@ -222,12 +315,18 @@ async function startServer() {
         message: "Code d'accès vérifié avec succès !"
       });
     } else {
-      state.attemptsLeft = Math.max(0, state.attemptsLeft - 1);
+      const newAttempts = Math.max(0, (state.attemptsLeft ?? 3) - 1);
 
-      if (state.attemptsLeft <= 0) {
-        state.lockedUntil = Date.now() + 24 * 60 * 60 * 1000;
-        state.lockoutReason = 'attempts_exhausted';
-        saveAllStates(memoryStates);
+      if (newAttempts <= 0) {
+        const lockDuration = 24 * 60 * 60 * 1000;
+        const lockedUntil = Date.now() + lockDuration;
+
+        updateStateForKeys(keys, (prev) => ({
+          ...prev,
+          attemptsLeft: 0,
+          lockedUntil,
+          lockoutReason: 'attempts_exhausted'
+        }));
 
         return res.json({
           success: false,
@@ -235,41 +334,54 @@ async function startServer() {
           attemptsLeft: 0,
           locked: true,
           lockoutReason: 'attempts_exhausted',
-          remainingMs: 24 * 60 * 60 * 1000,
+          remainingMs: lockDuration,
+          lockedUntil,
           message: "3 tentatives incorrectes. Accès verrouillé pour 24 heures."
         });
-      }
+      } else {
+        updateStateForKeys(keys, (prev) => ({
+          ...prev,
+          attemptsLeft: newAttempts
+        }));
 
-      saveAllStates(memoryStates);
-      return res.json({
-        success: false,
-        unlocked: false,
-        attemptsLeft: state.attemptsLeft,
-        message: `Mauvaise réponse. Il vous reste ${state.attemptsLeft} tentative${state.attemptsLeft > 1 ? 's' : ''}.`
-      });
+        return res.json({
+          success: false,
+          unlocked: false,
+          attemptsLeft: newAttempts,
+          message: `Mauvaise réponse. Il vous reste ${newAttempts} tentative${newAttempts > 1 ? 's' : ''}.`
+        });
+      }
     }
   });
 
   // API Route: POST /api/quiz/cheat
-  // Triggered when visibilitychange or blur occurs while challenge modal is open
   app.post('/api/quiz/cheat', (req: Request, res: Response) => {
-    const clientId = getClientIdentifier(req);
-    const state = getOrCreateClientState(clientId);
+    const { state, keys } = getEffectiveState(req);
 
     if (state.unlocked) {
       return res.json({ unlocked: true });
     }
 
-    // Immediately trigger 24h lockout
-    state.attemptsLeft = 0;
-    state.lockedUntil = Date.now() + 24 * 60 * 60 * 1000;
-    state.lockoutReason = 'anti-cheat';
-    saveAllStates(memoryStates);
+    const lockDuration = 24 * 60 * 60 * 1000;
+    const lockedUntil = Date.now() + lockDuration;
+
+    updateStateForKeys(keys, (prev) => ({
+      ...prev,
+      attemptsLeft: 0,
+      lockedUntil,
+      lockoutReason: 'anti-cheat'
+    }));
+
+    res.setHeader('Set-Cookie', [
+      `hbo_quiz_lockout_until=${lockedUntil}; Path=/; Max-Age=86400; SameSite=Lax`,
+      `hbo_quiz_lockout_reason=anti-cheat; Path=/; Max-Age=86400; SameSite=Lax`
+    ]);
 
     return res.json({
       locked: true,
       lockoutReason: 'anti-cheat',
-      remainingMs: 24 * 60 * 60 * 1000,
+      remainingMs: lockDuration,
+      lockedUntil,
       message: "Sortie de la page détectée. Protocole anti-triche activé : verrouillage 24h."
     });
   });

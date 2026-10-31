@@ -63,7 +63,6 @@ const BRAND_LOGOS: BrandLogoItem[] = [
   },
 ];
 
-// Repeat 4 times for seamless continuous infinite slide
 const SLIDING_LOGOS = [...BRAND_LOGOS, ...BRAND_LOGOS, ...BRAND_LOGOS, ...BRAND_LOGOS];
 
 interface QuizQuestion {
@@ -72,34 +71,80 @@ interface QuizQuestion {
   options: string[];
 }
 
+function getStoredLockout(): { isLocked: boolean; remainingMs: number; reason: string | null } {
+  try {
+    let rawUntil = localStorage.getItem("hbo_quiz_lockout_until");
+    let reason = localStorage.getItem("hbo_quiz_lockout_reason");
+
+    if (!rawUntil && typeof document !== "undefined") {
+      const matchUntil = document.cookie.match(/hbo_quiz_lockout_until=([0-9]+)/);
+      if (matchUntil && matchUntil[1]) {
+        rawUntil = matchUntil[1];
+      }
+      const matchReason = document.cookie.match(/hbo_quiz_lockout_reason=([^;]+)/);
+      if (matchReason && matchReason[1]) {
+        reason = matchReason[1];
+      }
+    }
+
+    if (rawUntil) {
+      const untilNum = Number(rawUntil);
+      if (untilNum > Date.now()) {
+        return { isLocked: true, remainingMs: untilNum - Date.now(), reason: reason || "anti-cheat" };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { isLocked: false, remainingMs: 0, reason: null };
+}
+
 export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFadingToBlack, setIsFadingToBlack] = useState(false);
 
-  // Locked clue & Quiz states
+  // Synchronous lockout check on component creation
+  const initialLock = getStoredLockout();
+
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
-    return localStorage.getItem("hbo_date_unlocked") === "true";
+    try {
+      return localStorage.getItem("hbo_date_unlocked") === "true";
+    } catch {
+      return false;
+    }
   });
-  const [isLocked, setIsLocked] = useState(false);
-  const [remainingMs, setRemainingMs] = useState(0);
-  const [lockoutReason, setLockoutReason] = useState<string | null>(null);
+  const [isLocked, setIsLocked] = useState<boolean>(initialLock.isLocked);
+  const [remainingMs, setRemainingMs] = useState<number>(initialLock.remainingMs);
+  const [lockoutReason, setLockoutReason] = useState<string | null>(initialLock.reason);
   const [attemptsLeft, setAttemptsLeft] = useState(3);
-  const [currentQuestion, setCurrentQuestion] = useState<QuizQuestion | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<QuizQuestion | null>({
+    id: "derry-q1",
+    question: "Quel est le nom du 9ème épisode de la série HBO « Ça : Bienvenue à Derry » ?",
+    options: [
+      "The Black Spot",
+      "Bloodlines",
+      "Il n'y a pas de 9ème épisode",
+      "The Ritual of Chüd"
+    ]
+  });
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [justUnlocked, setJustUnlocked] = useState(false);
 
-  // Client ID for extra browser resilience
   const clientIdRef = useRef<string>("");
   useEffect(() => {
-    let id = localStorage.getItem("hbo_client_uid");
-    if (!id) {
-      id = "client_" + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
-      localStorage.setItem("hbo_client_uid", id);
+    try {
+      let id = localStorage.getItem("hbo_client_uid");
+      if (!id) {
+        id = "client_" + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
+        localStorage.setItem("hbo_client_uid", id);
+      }
+      clientIdRef.current = id;
+      document.cookie = `hbo_client_uid=${id}; max-age=31536000; path=/; SameSite=Lax`;
+    } catch {
+      // ignore
     }
-    clientIdRef.current = id;
   }, []);
 
   // Preload backdrop images
@@ -128,14 +173,11 @@ export default function App() {
     };
   }, [currentIndex]);
 
-  // Fetch status from server on mount
+  // Synchronize state with server
   const fetchQuizStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/quiz/status", {
-        headers: {
-          "x-client-id": clientIdRef.current || localStorage.getItem("hbo_client_uid") || "",
-        },
-      });
+      const cid = clientIdRef.current || localStorage.getItem("hbo_client_uid") || "";
+      const res = await fetch(`/api/quiz/status?clientId=${encodeURIComponent(cid)}`);
       if (!res.ok) return;
       const data = await res.json();
 
@@ -143,19 +185,32 @@ export default function App() {
         setIsUnlocked(true);
         localStorage.setItem("hbo_date_unlocked", "true");
         setIsLocked(false);
+        localStorage.removeItem("hbo_quiz_lockout_until");
+        localStorage.removeItem("hbo_quiz_lockout_reason");
       } else if (data.locked) {
         setIsLocked(true);
-        setRemainingMs(data.remainingMs || 24 * 60 * 60 * 1000);
-        setLockoutReason(data.lockoutReason || "attempts_exhausted");
+        const rem = data.remainingMs || 24 * 60 * 60 * 1000;
+        const reason = data.lockoutReason || "anti-cheat";
+        setRemainingMs(rem);
+        setLockoutReason(reason);
+
+        const lockedUntil = data.lockedUntil || Date.now() + rem;
+        localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
+        localStorage.setItem("hbo_quiz_lockout_reason", reason);
+        document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
+        document.cookie = `hbo_quiz_lockout_reason=${reason}; max-age=86400; path=/; SameSite=Lax`;
       } else {
-        setIsLocked(false);
-        setAttemptsLeft(data.attemptsLeft ?? 3);
-        if (data.question) {
-          setCurrentQuestion(data.question);
+        const localCheck = getStoredLockout();
+        if (!localCheck.isLocked) {
+          setIsLocked(false);
+          setAttemptsLeft(data.attemptsLeft ?? 3);
+          if (data.question) {
+            setCurrentQuestion(data.question);
+          }
         }
       }
     } catch (err) {
-      console.warn("Failed to fetch quiz status:", err);
+      console.warn("Failed to sync quiz status with server:", err);
     }
   }, []);
 
@@ -163,7 +218,7 @@ export default function App() {
     fetchQuizStatus();
   }, [fetchQuizStatus]);
 
-  // Countdown timer when locked
+  // Live countdown timer when locked
   useEffect(() => {
     if (!isLocked || remainingMs <= 0) return;
 
@@ -171,7 +226,10 @@ export default function App() {
       setRemainingMs((prev) => {
         if (prev <= 1000) {
           clearInterval(interval);
-          fetchQuizStatus(); // Refresh when timer hits zero
+          localStorage.removeItem("hbo_quiz_lockout_until");
+          localStorage.removeItem("hbo_quiz_lockout_reason");
+          setIsLocked(false);
+          fetchQuizStatus();
           return 0;
         }
         return prev - 1000;
@@ -181,33 +239,53 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isLocked, remainingMs, fetchQuizStatus]);
 
-  // Anti-cheat handler: triggered when user leaves tab/window while modal is open
-  const triggerAntiCheat = useCallback(async () => {
-    if (isUnlocked || isLocked || !isQuizModalOpen) return;
+  // Anti-cheat handler: triggered immediately upon leaving the challenge
+  const triggerAntiCheat = useCallback(() => {
+    if (isUnlocked || isLocked) return;
+
+    const lockDuration = 24 * 60 * 60 * 1000;
+    const lockedUntil = Date.now() + lockDuration;
+    const cid = clientIdRef.current || localStorage.getItem("hbo_client_uid") || "";
+
+    // 1. Immediately lock local state and persist to localStorage + cookie synchronously
+    try {
+      localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
+      localStorage.setItem("hbo_quiz_lockout_reason", "anti-cheat");
+      document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
+      document.cookie = `hbo_quiz_lockout_reason=anti-cheat; max-age=86400; path=/; SameSite=Lax`;
+    } catch {
+      // ignore
+    }
+
+    setIsLocked(true);
+    setAttemptsLeft(0);
+    setLockoutReason("anti-cheat");
+    setRemainingMs(lockDuration);
+    setErrorMessage("Sortie de page détectée. Protocole anti-triche activé : verrouillage 24h.");
+
+    // 2. Transmit to server reliably
+    const payload = JSON.stringify({ reason: "anti-cheat", clientId: cid });
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      navigator.sendBeacon("/api/quiz/cheat", payload);
+    }
 
     try {
-      const res = await fetch("/api/quiz/cheat", {
+      fetch("/api/quiz/cheat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-client-id": clientIdRef.current || localStorage.getItem("hbo_client_uid") || "",
         },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {
+        // beacon backup already sent
       });
-      const data = await res.json();
-      setIsLocked(true);
-      setAttemptsLeft(0);
-      setLockoutReason("anti-cheat");
-      setRemainingMs(data.remainingMs || 24 * 60 * 60 * 1000);
-      setErrorMessage("Tentative de sortie détectée. Protocole anti-triche activé : verrouillage 24h.");
-    } catch (err) {
-      console.error("Anti-cheat trigger error:", err);
-      setIsLocked(true);
-      setLockoutReason("anti-cheat");
-      setRemainingMs(24 * 60 * 60 * 1000);
+    } catch {
+      // ignore
     }
-  }, [isUnlocked, isLocked, isQuizModalOpen]);
+  }, [isUnlocked, isLocked]);
 
-  // Anti-cheat listeners: visibilitychange + blur
+  // Anti-cheat event listeners (armed only while quiz modal is open and user is active)
   useEffect(() => {
     if (!isQuizModalOpen || isUnlocked || isLocked) return;
 
@@ -217,69 +295,102 @@ export default function App() {
       }
     };
 
-    const handleBlur = () => {
-      // Blur can sometimes fire on simple select elements, so we check document.activeElement
-      // but if the window itself loses focus (e.g. alt-tab or app switch), trigger anti-cheat
-      setTimeout(() => {
-        if (document.hidden || !document.hasFocus()) {
-          triggerAntiCheat();
-        }
-      }, 100);
+    const handlePageHide = () => {
+      triggerAntiCheat();
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
     };
   }, [isQuizModalOpen, isUnlocked, isLocked, triggerAntiCheat]);
 
-  // Handle answer submission
+  // Answer submission with seamless server-side + local resilient evaluation
   const handleSubmitAnswer = async () => {
     if (selectedOption === null || isSubmitting || isLocked || isUnlocked) return;
 
     setIsSubmitting(true);
     setErrorMessage(null);
+    const cid = clientIdRef.current || localStorage.getItem("hbo_client_uid") || "";
 
     try {
       const res = await fetch("/api/quiz/answer", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-client-id": clientIdRef.current || localStorage.getItem("hbo_client_uid") || "",
         },
-        body: JSON.stringify({ chosenIndex: selectedOption }),
+        body: JSON.stringify({ chosenIndex: selectedOption, clientId: cid }),
       });
+
+      if (!res.ok) {
+        throw new Error(`Server returned status: ${res.status}`);
+      }
 
       const data = await res.json();
 
       if (data.unlocked) {
         setIsUnlocked(true);
-        setJustUnlocked(true);
         localStorage.setItem("hbo_date_unlocked", "true");
+        localStorage.removeItem("hbo_quiz_lockout_until");
+        localStorage.removeItem("hbo_quiz_lockout_reason");
         setIsLocked(false);
       } else if (data.locked) {
+        const lockDuration = data.remainingMs || 24 * 60 * 60 * 1000;
+        const lockedUntil = data.lockedUntil || Date.now() + lockDuration;
+
+        localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
+        localStorage.setItem("hbo_quiz_lockout_reason", "attempts_exhausted");
+        document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
+
         setIsLocked(true);
         setAttemptsLeft(0);
-        setLockoutReason(data.lockoutReason || "attempts_exhausted");
-        setRemainingMs(data.remainingMs || 24 * 60 * 60 * 1000);
+        setLockoutReason("attempts_exhausted");
+        setRemainingMs(lockDuration);
         setErrorMessage(data.message || "3 tentatives incorrectes. Accès verrouillé pour 24 heures.");
       } else {
         setAttemptsLeft(data.attemptsLeft ?? 1);
         setErrorMessage(data.message || "Mauvaise réponse. Réessayez.");
         setSelectedOption(null);
       }
-    } catch (err) {
-      console.error("Submit error:", err);
-      setErrorMessage("Une erreur réseau est survenue. Veuillez réessayer.");
+    } catch {
+      // Local fallback logic ensures user is never blocked by network latency or CORS
+      if (selectedOption === 2) {
+        // Correct answer: "Il n'y a pas de 9ème épisode"
+        setIsUnlocked(true);
+        localStorage.setItem("hbo_date_unlocked", "true");
+        localStorage.removeItem("hbo_quiz_lockout_until");
+        localStorage.removeItem("hbo_quiz_lockout_reason");
+        setIsLocked(false);
+      } else {
+        const nextAttempts = Math.max(0, attemptsLeft - 1);
+        if (nextAttempts <= 0) {
+          const lockDuration = 24 * 60 * 60 * 1000;
+          const lockedUntil = Date.now() + lockDuration;
+          localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
+          localStorage.setItem("hbo_quiz_lockout_reason", "attempts_exhausted");
+          document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
+
+          setIsLocked(true);
+          setAttemptsLeft(0);
+          setLockoutReason("attempts_exhausted");
+          setRemainingMs(lockDuration);
+          setErrorMessage("3 tentatives incorrectes. Accès verrouillé pour 24 heures.");
+        } else {
+          setAttemptsLeft(nextAttempts);
+          setErrorMessage(`Mauvaise réponse. Il vous reste ${nextAttempts} tentative${nextAttempts > 1 ? "s" : ""}.`);
+          setSelectedOption(null);
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Format milliseconds into HH:MM:SS
   const formatCountdown = (ms: number) => {
     const totalSeconds = Math.max(0, Math.floor(ms / 1000));
     const hours = Math.floor(totalSeconds / 3600);
@@ -571,7 +682,7 @@ export default function App() {
               transition={{ duration: 0.2 }}
               className="relative w-full max-w-lg bg-[#0C0E13] border border-white/10 rounded-2xl shadow-2xl p-6 sm:p-7 overflow-hidden text-zinc-200"
             >
-              {/* Subtle ambient lighting */}
+              {/* Ambient glow */}
               <div className="absolute top-0 right-0 w-64 h-32 bg-[#8EA1AC]/5 blur-3xl pointer-events-none" />
 
               {/* Close Button (X) */}
@@ -646,7 +757,7 @@ export default function App() {
                   </div>
 
                   <p className="text-[11px] text-zinc-500 leading-tight">
-                    Ce verrouillage est persistant et rattaché à votre session. Une nouvelle question sera proposée dès la fin du compte à rebours.
+                    Ce verrouillage de 24h est actif et persistant. Une nouvelle énigme sera disponible à l&apos;issue du compte à rebours.
                   </p>
 
                   <button
