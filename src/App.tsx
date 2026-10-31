@@ -3,9 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Lock, Unlock, Clock, AlertTriangle, X, Check, ShieldAlert } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { motion } from "motion/react";
 
 interface BackdropItem {
   src: string;
@@ -63,91 +62,14 @@ const BRAND_LOGOS: BrandLogoItem[] = [
   },
 ];
 
+// Repeat 4 times for seamless continuous infinite slide
 const SLIDING_LOGOS = [...BRAND_LOGOS, ...BRAND_LOGOS, ...BRAND_LOGOS, ...BRAND_LOGOS];
-
-interface QuizQuestion {
-  id: string;
-  question: string;
-  options: string[];
-}
-
-function getStoredLockout(): { isLocked: boolean; remainingMs: number; reason: string | null } {
-  try {
-    let rawUntil = localStorage.getItem("hbo_quiz_lockout_until");
-    let reason = localStorage.getItem("hbo_quiz_lockout_reason");
-
-    if (!rawUntil && typeof document !== "undefined") {
-      const matchUntil = document.cookie.match(/hbo_quiz_lockout_until=([0-9]+)/);
-      if (matchUntil && matchUntil[1]) {
-        rawUntil = matchUntil[1];
-      }
-      const matchReason = document.cookie.match(/hbo_quiz_lockout_reason=([^;]+)/);
-      if (matchReason && matchReason[1]) {
-        reason = matchReason[1];
-      }
-    }
-
-    if (rawUntil) {
-      const untilNum = Number(rawUntil);
-      if (untilNum > Date.now()) {
-        return { isLocked: true, remainingMs: untilNum - Date.now(), reason: reason || "anti-cheat" };
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return { isLocked: false, remainingMs: 0, reason: null };
-}
 
 export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFadingToBlack, setIsFadingToBlack] = useState(false);
 
-  // Synchronous lockout check on component creation
-  const initialLock = getStoredLockout();
-
-  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("hbo_date_unlocked") === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [isLocked, setIsLocked] = useState<boolean>(initialLock.isLocked);
-  const [remainingMs, setRemainingMs] = useState<number>(initialLock.remainingMs);
-  const [lockoutReason, setLockoutReason] = useState<string | null>(initialLock.reason);
-  const [attemptsLeft, setAttemptsLeft] = useState(3);
-  const [currentQuestion, setCurrentQuestion] = useState<QuizQuestion | null>({
-    id: "derry-q1",
-    question: "Quel est le nom du 9ème épisode de la série HBO « Ça : Bienvenue à Derry » ?",
-    options: [
-      "The Black Spot",
-      "Bloodlines",
-      "Il n'y a pas de 9ème épisode",
-      "The Ritual of Chüd"
-    ]
-  });
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const clientIdRef = useRef<string>("");
-  useEffect(() => {
-    try {
-      let id = localStorage.getItem("hbo_client_uid");
-      if (!id) {
-        id = "client_" + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
-        localStorage.setItem("hbo_client_uid", id);
-      }
-      clientIdRef.current = id;
-      document.cookie = `hbo_client_uid=${id}; max-age=31536000; path=/; SameSite=Lax`;
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Preload backdrop images
+  // Preload all backdrop images immediately on mount for instant zero-lag rendering
   useEffect(() => {
     BACKDROP_IMAGES.forEach((item) => {
       const img = new Image();
@@ -155,12 +77,15 @@ export default function App() {
     });
   }, []);
 
-  // 5 seconds fixed display followed by dip-to-black
+  // 5 seconds fixed display followed by a smooth dip-to-black transition (fondu au noir)
   useEffect(() => {
     let switchTimer: ReturnType<typeof setTimeout>;
 
     const holdTimer = setTimeout(() => {
+      // 1. Fade image out into black
       setIsFadingToBlack(true);
+
+      // 2. Once screen has reached pure black (~650ms), swap image and fade back in
       switchTimer = setTimeout(() => {
         setCurrentIndex((prev) => (prev + 1) % BACKDROP_IMAGES.length);
         setIsFadingToBlack(false);
@@ -173,237 +98,9 @@ export default function App() {
     };
   }, [currentIndex]);
 
-  // Synchronize state with server
-  const fetchQuizStatus = useCallback(async () => {
-    try {
-      const cid = clientIdRef.current || localStorage.getItem("hbo_client_uid") || "";
-      const res = await fetch(`/api/quiz/status?clientId=${encodeURIComponent(cid)}`);
-      if (!res.ok) return;
-      const data = await res.json();
-
-      if (data.unlocked) {
-        setIsUnlocked(true);
-        localStorage.setItem("hbo_date_unlocked", "true");
-        setIsLocked(false);
-        localStorage.removeItem("hbo_quiz_lockout_until");
-        localStorage.removeItem("hbo_quiz_lockout_reason");
-      } else if (data.locked) {
-        setIsLocked(true);
-        const rem = data.remainingMs || 24 * 60 * 60 * 1000;
-        const reason = data.lockoutReason || "anti-cheat";
-        setRemainingMs(rem);
-        setLockoutReason(reason);
-
-        const lockedUntil = data.lockedUntil || Date.now() + rem;
-        localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
-        localStorage.setItem("hbo_quiz_lockout_reason", reason);
-        document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
-        document.cookie = `hbo_quiz_lockout_reason=${reason}; max-age=86400; path=/; SameSite=Lax`;
-      } else {
-        const localCheck = getStoredLockout();
-        if (!localCheck.isLocked) {
-          setIsLocked(false);
-          setAttemptsLeft(data.attemptsLeft ?? 3);
-          if (data.question) {
-            setCurrentQuestion(data.question);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to sync quiz status with server:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchQuizStatus();
-  }, [fetchQuizStatus]);
-
-  // Live countdown timer when locked
-  useEffect(() => {
-    if (!isLocked || remainingMs <= 0) return;
-
-    const interval = setInterval(() => {
-      setRemainingMs((prev) => {
-        if (prev <= 1000) {
-          clearInterval(interval);
-          localStorage.removeItem("hbo_quiz_lockout_until");
-          localStorage.removeItem("hbo_quiz_lockout_reason");
-          setIsLocked(false);
-          fetchQuizStatus();
-          return 0;
-        }
-        return prev - 1000;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isLocked, remainingMs, fetchQuizStatus]);
-
-  // Anti-cheat handler: triggered immediately upon leaving the challenge
-  const triggerAntiCheat = useCallback(() => {
-    if (isUnlocked || isLocked) return;
-
-    const lockDuration = 24 * 60 * 60 * 1000;
-    const lockedUntil = Date.now() + lockDuration;
-    const cid = clientIdRef.current || localStorage.getItem("hbo_client_uid") || "";
-
-    // 1. Immediately lock local state and persist to localStorage + cookie synchronously
-    try {
-      localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
-      localStorage.setItem("hbo_quiz_lockout_reason", "anti-cheat");
-      document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
-      document.cookie = `hbo_quiz_lockout_reason=anti-cheat; max-age=86400; path=/; SameSite=Lax`;
-    } catch {
-      // ignore
-    }
-
-    setIsLocked(true);
-    setAttemptsLeft(0);
-    setLockoutReason("anti-cheat");
-    setRemainingMs(lockDuration);
-    setErrorMessage("Sortie de page détectée. Protocole anti-triche activé : verrouillage 24h.");
-
-    // 2. Transmit to server reliably
-    const payload = JSON.stringify({ reason: "anti-cheat", clientId: cid });
-    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-      navigator.sendBeacon("/api/quiz/cheat", payload);
-    }
-
-    try {
-      fetch("/api/quiz/cheat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: payload,
-        keepalive: true,
-      }).catch(() => {
-        // beacon backup already sent
-      });
-    } catch {
-      // ignore
-    }
-  }, [isUnlocked, isLocked]);
-
-  // Anti-cheat event listeners (armed only while quiz modal is open and user is active)
-  useEffect(() => {
-    if (!isQuizModalOpen || isUnlocked || isLocked) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        triggerAntiCheat();
-      }
-    };
-
-    const handlePageHide = () => {
-      triggerAntiCheat();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pagehide", handlePageHide);
-    window.addEventListener("beforeunload", handlePageHide);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pagehide", handlePageHide);
-      window.removeEventListener("beforeunload", handlePageHide);
-    };
-  }, [isQuizModalOpen, isUnlocked, isLocked, triggerAntiCheat]);
-
-  // Answer submission with seamless server-side + local resilient evaluation
-  const handleSubmitAnswer = async () => {
-    if (selectedOption === null || isSubmitting || isLocked || isUnlocked) return;
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    const cid = clientIdRef.current || localStorage.getItem("hbo_client_uid") || "";
-
-    try {
-      const res = await fetch("/api/quiz/answer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ chosenIndex: selectedOption, clientId: cid }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Server returned status: ${res.status}`);
-      }
-
-      const data = await res.json();
-
-      if (data.unlocked) {
-        setIsUnlocked(true);
-        localStorage.setItem("hbo_date_unlocked", "true");
-        localStorage.removeItem("hbo_quiz_lockout_until");
-        localStorage.removeItem("hbo_quiz_lockout_reason");
-        setIsLocked(false);
-      } else if (data.locked) {
-        const lockDuration = data.remainingMs || 24 * 60 * 60 * 1000;
-        const lockedUntil = data.lockedUntil || Date.now() + lockDuration;
-
-        localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
-        localStorage.setItem("hbo_quiz_lockout_reason", "attempts_exhausted");
-        document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
-
-        setIsLocked(true);
-        setAttemptsLeft(0);
-        setLockoutReason("attempts_exhausted");
-        setRemainingMs(lockDuration);
-        setErrorMessage(data.message || "3 tentatives incorrectes. Accès verrouillé pour 24 heures.");
-      } else {
-        setAttemptsLeft(data.attemptsLeft ?? 1);
-        setErrorMessage(data.message || "Mauvaise réponse. Réessayez.");
-        setSelectedOption(null);
-      }
-    } catch {
-      // Local fallback logic ensures user is never blocked by network latency or CORS
-      if (selectedOption === 2) {
-        // Correct answer: "Il n'y a pas de 9ème épisode"
-        setIsUnlocked(true);
-        localStorage.setItem("hbo_date_unlocked", "true");
-        localStorage.removeItem("hbo_quiz_lockout_until");
-        localStorage.removeItem("hbo_quiz_lockout_reason");
-        setIsLocked(false);
-      } else {
-        const nextAttempts = Math.max(0, attemptsLeft - 1);
-        if (nextAttempts <= 0) {
-          const lockDuration = 24 * 60 * 60 * 1000;
-          const lockedUntil = Date.now() + lockDuration;
-          localStorage.setItem("hbo_quiz_lockout_until", lockedUntil.toString());
-          localStorage.setItem("hbo_quiz_lockout_reason", "attempts_exhausted");
-          document.cookie = `hbo_quiz_lockout_until=${lockedUntil}; max-age=86400; path=/; SameSite=Lax`;
-
-          setIsLocked(true);
-          setAttemptsLeft(0);
-          setLockoutReason("attempts_exhausted");
-          setRemainingMs(lockDuration);
-          setErrorMessage("3 tentatives incorrectes. Accès verrouillé pour 24 heures.");
-        } else {
-          setAttemptsLeft(nextAttempts);
-          setErrorMessage(`Mauvaise réponse. Il vous reste ${nextAttempts} tentative${nextAttempts > 1 ? "s" : ""}.`);
-          setSelectedOption(null);
-        }
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const formatCountdown = (ms: number) => {
-    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    return `${hours.toString().padStart(2, "0")}h ${minutes
-      .toString()
-      .padStart(2, "0")}m ${seconds.toString().padStart(2, "0")}s`;
-  };
-
   return (
     <div className="relative w-full min-h-screen min-h-[100dvh] bg-[#08090C] text-white flex flex-col justify-between overflow-x-hidden overflow-y-auto md:overflow-hidden select-none font-sans">
-      {/* Multi-stop cinematic backdrop mask */}
+      {/* Smooth multi-stop cinematic mask to completely eliminate any visible line or separation */}
       <style>{`
         .cinematic-backdrop-mask {
           -webkit-mask-image: linear-gradient(to right, 
@@ -504,6 +201,7 @@ export default function App() {
 
       {/* ================= RIGHT-SIDE CINEMATIC SLIDESHOW ================= */}
       <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden z-0 cinematic-backdrop-mask">
+        {/* Fixed steady images without any scale/zoom */}
         {BACKDROP_IMAGES.map((item, idx) => (
           <img
             key={item.src}
@@ -519,7 +217,7 @@ export default function App() {
           />
         ))}
 
-        {/* Dip-to-black overlay */}
+        {/* Dip-to-black overlay: smooth fade to black and back to reveal next image */}
         <div
           className={`absolute inset-0 w-full h-full bg-[#08090C] transition-opacity duration-[650ms] ease-in-out ${
             isFadingToBlack ? "opacity-100" : "opacity-0"
@@ -527,7 +225,7 @@ export default function App() {
         />
       </div>
 
-      {/* ================= HEADER: LOGO TOP-LEFT ================= */}
+      {/* ================= HEADER: LOGO TOP-LEFT (NO BUTTONS) ================= */}
       <header className="relative z-10 w-full px-6 sm:px-10 md:px-16 pt-[max(1.75rem,env(safe-area-inset-top))] md:pt-10 flex items-center justify-between">
         <a
           href="https://x.com/HBOMaxActuFR"
@@ -552,37 +250,15 @@ export default function App() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="space-y-4 sm:space-y-5"
         >
-          {/* Main Title: Transforms smoothly to 'LE 22 NOVEMBRE' once unlocked */}
-          <div className="relative">
-            <AnimatePresence mode="wait">
-              {isUnlocked ? (
-                <motion.h1
-                  key="unlocked-title"
-                  initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                  transition={{ duration: 0.7, ease: "easeOut" }}
-                  className="text-4xl sm:text-5xl md:text-5xl lg:text-[52px] xl:text-6xl font-bold tracking-tight uppercase font-maxactu-bold drop-shadow-[0_2px_12px_rgba(142,161,172,0.3)]"
-                  style={{ color: "#8EA1AC", fontFamily: "'MaxactuSansBold', sans-serif" }}
-                >
-                  LE 22 NOVEMBRE
-                </motion.h1>
-              ) : (
-                <motion.h1
-                  key="default-title"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
-                  transition={{ duration: 0.6 }}
-                  className="text-4xl sm:text-5xl md:text-5xl lg:text-[52px] xl:text-6xl font-bold tracking-tight uppercase font-maxactu-bold drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
-                  style={{ color: "#8EA1AC", fontFamily: "'MaxactuSansBold', sans-serif" }}
-                >
-                  EN NOVEMBRE
-                </motion.h1>
-              )}
-            </AnimatePresence>
-          </div>
+          {/* Main Title: EN NOVEMBRE (MaxactuSansBold, all caps, larger font) */}
+          <h1
+            className="text-4xl sm:text-5xl md:text-5xl lg:text-[52px] xl:text-6xl font-bold tracking-tight uppercase font-maxactu-bold drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
+            style={{ color: "#8EA1AC", fontFamily: "'MaxactuSansBold', sans-serif" }}
+          >
+            EN NOVEMBRE
+          </h1>
 
-          {/* Description Text */}
+          {/* Description Text: maxactu_demi */}
           <p
             className="text-[15px] sm:text-base md:text-[14px] text-white font-normal leading-relaxed max-w-xl text-pretty font-maxactu-demi drop-shadow-[0_1px_5px_rgba(0,0,0,0.9)]"
             style={{ fontFamily: "'MaxactuDemi', sans-serif" }}
@@ -591,42 +267,9 @@ export default function App() {
             Retrouvez les prochaines sorties, les projets en développement et en production, les bandes-annonces,
             le top 10, des articles, des critiques et bien plus encore...
           </p>
-
-          {/* ================= INDICE VERROU ACTION BUTTON ================= */}
-          <div className="pt-2">
-            {isUnlocked ? (
-              <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[#8EA1AC]/10 border border-[#8EA1AC]/30 text-xs sm:text-sm text-[#8EA1AC] font-medium backdrop-blur-md">
-                <Unlock className="w-3.5 h-3.5 text-[#8EA1AC]" />
-                <span>Date de sortie déverrouillée : <strong className="text-white">22 Novembre</strong></span>
-              </div>
-            ) : isLocked ? (
-              <button
-                onClick={() => setIsQuizModalOpen(true)}
-                className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-lg bg-[#0E1015]/90 border border-white/10 text-xs sm:text-sm text-zinc-300 hover:text-white hover:border-white/20 transition-all backdrop-blur-md cursor-pointer"
-              >
-                <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Accès verrouillé • Réessayer dans <span className="font-mono text-zinc-200">{formatCountdown(remainingMs)}</span></span>
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setErrorMessage(null);
-                  setIsQuizModalOpen(true);
-                }}
-                className="group inline-flex items-center gap-2.5 px-4 py-2 rounded-lg bg-[#0E1015]/90 hover:bg-[#141720] border border-white/15 hover:border-[#8EA1AC]/40 text-xs sm:text-sm text-zinc-200 hover:text-white transition-all backdrop-blur-md shadow-lg shadow-black/40 cursor-pointer"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8EA1AC] opacity-60"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8EA1AC]"></span>
-                </span>
-                <Lock className="w-3.5 h-3.5 text-[#8EA1AC] group-hover:scale-105 transition-transform" />
-                <span className="tracking-wide">Déverrouiller la date exacte • Indice</span>
-              </button>
-            )}
-          </div>
         </motion.div>
 
-        {/* ================= AUTO-SLIDING LOGOS ================= */}
+        {/* ================= AUTO-SLIDING LOGOS (positioned midway between text and footer) ================= */}
         <div className="mt-8 sm:mt-12 md:mt-16 max-w-md sm:max-w-lg md:max-w-xl">
           <div className="relative w-full overflow-hidden logos-slider-mask py-2">
             <div className="logos-slide-track">
@@ -659,6 +302,7 @@ export default function App() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 font-medium text-white hover:text-[#8EA1AC] transition-colors"
           >
+            {/* X Logo */}
             <svg
               className="w-3.5 h-3.5 fill-current"
               viewBox="0 0 24 24"
@@ -670,226 +314,6 @@ export default function App() {
           </a>
         </div>
       </footer>
-
-      {/* ================= INDICE VERROU MODAL ================= */}
-      <AnimatePresence>
-        {isQuizModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg bg-[#0C0E13] border border-white/10 rounded-2xl shadow-2xl p-6 sm:p-7 overflow-hidden text-zinc-200"
-            >
-              {/* Ambient glow */}
-              <div className="absolute top-0 right-0 w-64 h-32 bg-[#8EA1AC]/5 blur-3xl pointer-events-none" />
-
-              {/* Close Button (X) */}
-              <button
-                onClick={() => setIsQuizModalOpen(false)}
-                className="absolute top-5 right-5 text-zinc-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5 cursor-pointer"
-                title="Fermer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              {/* STATE 1: UNLOCKED SUCCESS */}
-              {isUnlocked ? (
-                <div className="text-center py-6 space-y-4">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-[#8EA1AC]/15 border border-[#8EA1AC]/40 flex items-center justify-center text-[#8EA1AC]">
-                    <Check className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white uppercase tracking-wider font-maxactu-bold">
-                      Date Déverrouillée
-                    </h3>
-                    <p className="text-sm text-zinc-400 mt-1">
-                      Le code d&apos;accès a été validé. La date officielle est désormais révélée.
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
-                    <span className="text-xs uppercase text-[#8EA1AC] font-semibold tracking-widest block">
-                      Lancement Officiel
-                    </span>
-                    <span className="text-2xl sm:text-3xl font-bold text-white tracking-wide mt-1 block font-maxactu-bold">
-                      LE 22 NOVEMBRE
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setIsQuizModalOpen(false)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#8EA1AC] hover:bg-[#9eb1bc] text-[#08090C] font-semibold text-sm transition-colors cursor-pointer"
-                  >
-                    Voir l&apos;annonce
-                  </button>
-                </div>
-              ) : isLocked ? (
-                /* STATE 2: LOCKED (24H COUNTDOWN) */
-                <div className="text-center py-5 space-y-4">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-red-950/40 border border-red-500/30 flex items-center justify-center text-red-400">
-                    {lockoutReason === "anti-cheat" ? (
-                      <ShieldAlert className="w-6 h-6 text-red-400" />
-                    ) : (
-                      <Clock className="w-6 h-6 text-zinc-400" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-lg sm:text-xl font-bold text-white uppercase tracking-wider font-maxactu-bold">
-                      {lockoutReason === "anti-cheat"
-                        ? "Protocole Anti-Triche Déclenché"
-                        : "Tentatives Épuisées"}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-sm mx-auto">
-                      {lockoutReason === "anti-cheat"
-                        ? "Une sortie de page ou un changement d'onglet a été détecté lors du défi. Votre accès est temporairement suspendu."
-                        : "Vous avez utilisé vos 3 tentatives. L'accès est verrouillé pour 24 heures."}
-                    </p>
-                  </div>
-
-                  {/* Countdown Card */}
-                  <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10">
-                    <span className="text-[11px] uppercase tracking-wider text-zinc-400 block mb-1">
-                      Prochaine tentative & nouvelle énigme dans
-                    </span>
-                    <span className="text-2xl sm:text-3xl font-mono font-bold text-white tracking-wider">
-                      {formatCountdown(remainingMs)}
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-zinc-500 leading-tight">
-                    Ce verrouillage de 24h est actif et persistant. Une nouvelle énigme sera disponible à l&apos;issue du compte à rebours.
-                  </p>
-
-                  <button
-                    onClick={() => setIsQuizModalOpen(false)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-medium transition-colors cursor-pointer"
-                  >
-                    Fermer
-                  </button>
-                </div>
-              ) : (
-                /* STATE 3: ACTIVE QUIZ CHALLENGE */
-                <div className="space-y-5">
-                  {/* Category & Lives */}
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-[#8EA1AC]" />
-                      <span className="text-[11px] uppercase tracking-widest text-[#8EA1AC] font-semibold">
-                        Indice Verrou • Énigme du jour
-                      </span>
-                    </div>
-
-                    {/* Lives (chances) */}
-                    <div className="flex items-center gap-1.5" title={`${attemptsLeft} tentatives restantes`}>
-                      <span className="text-[11px] text-zinc-400 mr-1">{attemptsLeft}/3 chances</span>
-                      {[1, 2, 3].map((num) => (
-                        <div
-                          key={num}
-                          className={`w-3.5 h-1.5 rounded-full transition-colors ${
-                            num <= attemptsLeft ? "bg-[#8EA1AC]" : "bg-zinc-700 opacity-40"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Anti-cheat Warning Banner */}
-                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200/90 text-xs leading-relaxed">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                    <span>
-                      <strong>Règle stricte anti-triche :</strong> Ne quittez pas la page et ne changez pas d&apos;onglet, sous peine de disqualification immédiate et de blocage pour 24h.
-                    </span>
-                  </div>
-
-                  {/* The Question */}
-                  <div>
-                    <h4 className="text-base sm:text-lg font-semibold text-white leading-snug">
-                      {currentQuestion?.question ||
-                        "Quel est le nom du 9ème épisode de la série HBO « Ça : Bienvenue à Derry » ?"}
-                    </h4>
-                    <p className="text-xs text-zinc-400 mt-1">
-                      Sélectionnez votre réponse pour valider le code de déverrouillage :
-                    </p>
-                  </div>
-
-                  {/* Options List */}
-                  <div className="space-y-2">
-                    {(currentQuestion?.options || [
-                      "The Black Spot",
-                      "Bloodlines",
-                      "Il n'y a pas de 9ème épisode",
-                      "The Ritual of Chüd",
-                    ]).map((option, idx) => {
-                      const letters = ["A", "B", "C", "D"];
-                      const isSelected = selectedOption === idx;
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setSelectedOption(idx)}
-                          className={`w-full flex items-center text-left gap-3 px-3.5 py-3 rounded-xl border text-sm transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-[#8EA1AC]/20 border-[#8EA1AC] text-white shadow-sm"
-                              : "bg-white/[0.02] border-white/10 hover:border-white/25 hover:bg-white/[0.05] text-zinc-300"
-                          }`}
-                        >
-                          <span
-                            className={`flex items-center justify-center w-6 h-6 rounded-md text-xs font-bold ${
-                              isSelected
-                                ? "bg-[#8EA1AC] text-[#08090C]"
-                                : "bg-white/10 text-zinc-400"
-                            }`}
-                          >
-                            {letters[idx]}
-                          </span>
-                          <span className="flex-1 font-medium">{option}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Error / Attempt message */}
-                  {errorMessage && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="text-xs text-red-400 bg-red-950/30 border border-red-500/20 px-3 py-2 rounded-lg"
-                    >
-                      {errorMessage}
-                    </motion.div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsQuizModalOpen(false)}
-                      className="w-1/3 py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-medium text-zinc-300 transition-colors cursor-pointer"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      type="button"
-                      disabled={selectedOption === null || isSubmitting}
-                      onClick={handleSubmitAnswer}
-                      className="w-2/3 py-2.5 px-4 rounded-xl bg-[#8EA1AC] hover:bg-[#9eb1bc] disabled:opacity-40 disabled:cursor-not-allowed text-[#08090C] font-semibold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <span className="w-3.5 h-3.5 border-2 border-[#08090C] border-t-transparent rounded-full animate-spin" />
-                          <span>Vérification...</span>
-                        </>
-                      ) : (
-                        <span>Valider la réponse</span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
